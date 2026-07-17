@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Financeiro - UniBF</title>
+    <link class="rounded-lg" rel="icon" type="image/jpeg" href="https://asprars.org.br/uploads/parceiros/a7c132328df271d885884e785a7798c3.jpeg">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 font-sans antialiased text-gray-800">
+
+    <header class="bg-indigo-900 text-white shadow-md px-6 py-4">
+        <div class="max-w-7xl mx-auto flex flex-col lg:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-4 w-full lg:w-auto">
+                <img src="https://asprars.org.br/uploads/parceiros/a7c132328df271d885884e785a7798c3.jpeg" alt="Logo UniBF" class="w-12 h-12 rounded-lg object-cover shadow-md bg-white p-0.5 border border-indigo-700">
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight">Painel Financeiro</h1>
+                    <p class="text-indigo-200 text-sm">DRE Consolidado - UniBF</p>
+                    <p class="text-indigo-300 text-xs mt-0.5">Atualizado em: <span id="lblUltimaAtualizacao">...</span></p>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap gap-3 text-sm items-center justify-end w-full lg:w-auto">
+                <select id="filtroAno" class="bg-white rounded px-3 py-1.5 font-bold border border-indigo-300 text-indigo-900 shadow-sm outline-none cursor-pointer"></select>
+                <select id="filtroMes" class="bg-white rounded px-3 py-1.5 font-medium border border-indigo-300 text-indigo-900 shadow-sm outline-none cursor-pointer"></select>
+                <select id="filtroEmpresa" class="bg-white rounded px-3 py-1.5 font-medium border border-indigo-300 text-indigo-900 shadow-sm outline-none cursor-pointer"></select>
+                <select id="filtroClassificacao" class="bg-white rounded px-3 py-1.5 font-medium border border-indigo-300 text-indigo-900 shadow-sm outline-none cursor-pointer"></select>
+                <select id="filtroPago" class="bg-white rounded px-3 py-1.5 font-medium border border-indigo-300 text-indigo-900 shadow-sm outline-none cursor-pointer"></select>
+            </div>
+        </div>
+    </header>
+
+    <nav class="bg-white border-b border-slate-200 px-6">
+        <div class="max-w-7xl mx-auto flex gap-6">
+            <button onclick="mudarAba('geral')" id="btn-geral" class="py-3 px-1 border-b-2 border-indigo-600 font-bold text-sm text-indigo-600 transition-all">
+                1. Visão Geral (DRE)
+            </button>
+            <button onclick="mudarAba('categoria')" id="btn-categoria" class="py-3 px-1 border-b-2 border-transparent font-medium text-sm text-slate-500 hover:text-indigo-600 transition-all">
+                2. Por Categoria
+            </button>
+            <button onclick="mudarAba('empresa')" id="btn-empresa" class="py-3 px-1 border-b-2 border-transparent font-medium text-sm text-slate-500 hover:text-indigo-600 transition-all">
+                3. Por Empresa
+            </button>
+            <button onclick="mudarAba('detalhe')" id="btn-detalhe" class="py-3 px-1 border-b-2 border-transparent font-medium text-sm text-slate-500 hover:text-indigo-600 transition-all">
+                4. Detalhamento
+            </button>
+        </div>
+    </nav>
+
+    <div id="overlayCarregando" class="fixed inset-0 bg-indigo-950 bg-opacity-60 z-50 flex flex-col items-center justify-center gap-4">
+        <div class="w-14 h-14 border-4 border-white border-t-indigo-400 rounded-full animate-spin"></div>
+        <p class="text-white text-lg font-bold tracking-wide">Carregando dados...</p>
+        <p class="text-indigo-200 text-sm">Consultando BigQuery, aguarde um momento.</p>
+    </div>
+
+    <main class="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
+
+        <!-- ABA 1 — VISÃO GERAL -->
+        <div id="conteudo-geral" class="space-y-6 hidden">
+            <section class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+                    <p class="text-gray-500 text-xs font-bold uppercase tracking-wider">Receita Total</p>
+                    <p id="kpiReceita" class="text-2xl font-black text-emerald-600 mt-1">--</p>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+                    <p class="text-gray-500 text-xs font-bold uppercase tracking-wider">Despesa Total</p>
+                    <p id="kpiDespesa" class="text-2xl font-black text-rose-600 mt-1">--</p>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+                    <p class="text-gray-500 text-xs font-bold uppercase tracking-wider">Resultado</p>
+                    <p id="kpiResultado" class="text-2xl font-black text-indigo-600 mt-1">--</p>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+                    <p class="text-gray-500 text-xs font-bold uppercase tracking-wider">Margem</p>
+                    <p id="kpiMargem" class="text-2xl font-black text-indigo-600 mt-1">--</p>
+                </div>
+            </section>
+
+            <section class="bg-white p-5 rounded-lg shadow-sm border border-slate-200 flex flex-col h-[420px]">
+                <div class="mb-2">
+                    <h3 class="text-base font-bold text-gray-800">Evolução Mensal — Receita x Despesa x Resultado</h3>
+                    <p class="text-xs text-gray-500">Soma de Valor Ajustado por mês de pagamento, no período filtrado.</p>
+                </div>
+                <div class="flex-1 min-h-0 relative"><canvas id="chartMensal"></canvas></div>
+            </section>
+        </div>
+
+        <!-- ABA 2 — POR CATEGORIA -->
+        <div id="conteudo-categoria" class="space-y-6 hidden">
+            <section class="bg-white p-5 rounded-lg shadow-sm border border-slate-200 flex flex-col h-[440px]">
+                <h3 class="text-base font-bold text-gray-800 mb-2">Despesas por Classificação</h3>
+                <div class="flex-1 min-h-0 relative"><canvas id="chartCategoriaDespesa"></canvas></div>
+            </section>
+            <section class="bg-white p-5 rounded-lg shadow-sm border border-slate-200 flex flex-col h-[360px]">
+                <h3 class="text-base font-bold text-gray-800 mb-2">Receitas por Classificação</h3>
+                <div class="flex-1 min-h-0 relative"><canvas id="chartCategoriaReceita"></canvas></div>
+            </section>
+            <section class="bg-white p-5 rounded-lg shadow-sm border border-slate-200">
+                <h3 class="text-base font-bold text-gray-800 mb-3">Top 15 — Plano de Contas (Despesas)</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead><tr class="text-left text-gray-500 border-b">
+                            <th class="py-2">Plano de Contas</th><th class="py-2 text-right">Valor</th>
+                        </tr></thead>
+                        <tbody id="tabelaPlanoContas"></tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <!-- ABA 3 — POR EMPRESA -->
+        <div id="conteudo-empresa" class="space-y-6 hidden">
+            <section class="bg-white p-5 rounded-lg shadow-sm border border-slate-200 flex flex-col h-[440px]">
+                <h3 class="text-base font-bold text-gray-800 mb-2">Receita x Despesa x Resultado por Empresa</h3>
+                <div class="flex-1 min-h-0 relative"><canvas id="chartEmpresa"></canvas></div>
+            </section>
+            <section class="bg-white p-5 rounded-lg shadow-sm border border-slate-200">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead><tr class="text-left text-gray-500 border-b">
+                            <th class="py-2">Empresa</th><th class="py-2 text-right">Receita</th>
+                            <th class="py-2 text-right">Despesa</th><th class="py-2 text-right">Resultado</th>
+                        </tr></thead>
+                        <tbody id="tabelaEmpresa"></tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <!-- ABA 4 — DETALHAMENTO -->
+        <div id="conteudo-detalhe" class="space-y-6 hidden">
+            <section class="bg-white p-5 rounded-lg shadow-sm border border-slate-200">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-base font-bold text-gray-800">Lançamentos (respeitando filtros ativos)</h3>
+                    <button id="btnBaixarDetalhado" onclick="baixarDetalhado()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold px-4 py-2 rounded shadow-sm transition-all">
+                        Baixar Detalhado (CSV)
+                    </button>
+                </div>
+                <div class="overflow-x-auto max-h-[600px] overflow-y-auto">
+                    <table class="w-full text-sm">
+                        <thead class="sticky top-0 bg-white"><tr class="text-left text-gray-500 border-b">
+                            <th class="py-2">Data Lançamento</th><th class="py-2">Classificação</th>
+                            <th class="py-2">Empresa</th><th class="py-2">Centro de Custo</th>
+                            <th class="py-2">Pago</th><th class="py-2 text-right">Valor Ajustado</th>
+                        </tr></thead>
+                        <tbody id="tabelaDetalhe"></tbody>
+                    </table>
+                </div>
+                <p id="lblContagemDetalhe" class="text-xs text-gray-500 mt-2"></p>
+            </section>
+        </div>
+
+    </main>
+
+    <script>
+        const MESES_NOME = ['', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+        const COR_RECEITA = '#059669', COR_DESPESA = '#e11d48', COR_RESULTADO = '#4f46e5';
+
+        let dadosResumo = [];
+        let abaAtiva = 'geral';
+        let charts = {};
+
+        const BASE = window.location.hostname === 'localhost'
+            ? ''
+            : 'https://unibf-financeiro.onrender.com';
+
+        function fmtMoeda(v) {
+            return (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+        }
+
+        // ─── ABAS ───────────────────────────────────────────────────────────
+
+        function mudarAba(aba) {
+            abaAtiva = aba;
+            ['geral', 'categoria', 'empresa', 'detalhe'].forEach(a => {
+                document.getElementById('conteudo-' + a).classList.toggle('hidden', a !== aba);
+                const btn = document.getElementById('btn-' + a);
+                btn.classList.toggle('border-indigo-600', a === aba);
+                btn.classList.toggle('text-indigo-600', a === aba);
+                btn.classList.toggle('font-bold', a === aba);
+                btn.classList.toggle('border-transparent', a !== aba);
+                btn.classList.toggle('text-slate-500', a !== aba);
+                btn.classList.toggle('font-medium', a !== aba);
+            });
+            renderizarAbaAtiva();
+        }
+
+        function renderizarAbaAtiva() {
+            const filtrados = aplicarFiltros(dadosResumo);
+            if (abaAtiva === 'geral') renderGeral(filtrados);
+            else if (abaAtiva === 'categoria') renderCategoria(filtrados);
+            else if (abaAtiva === 'empresa') renderEmpresa(filtrados);
+            else if (abaAtiva === 'detalhe') carregarDetalhado();
+        }
+
+        // ─── FILTROS ────────────────────────────────────────────────────────
+
+        function popularSelect(id, valores, labelTodos) {
+            const el = document.getElementById(id);
+            el.innerHTML = `<option value="">${labelTodos}</option>` +
+                valores.map(v => `<option value="${v}">${v}</option>`).join('');
+            el.onchange = renderizarAbaAtiva;
+        }
+
+        function construirFiltros(dados) {
+            const anos = [...new Set(dados.map(d => d.ano))].sort((a, b) => b - a);
+            const empresas = [...new Set(dados.map(d => d.empresa))].sort();
+            const classificacoes = [...new Set(dados.map(d => d.classificacao))].sort();
+
+            popularSelect('filtroAno', anos, 'Anos: Todos');
+            popularSelect('filtroMes', [1,2,3,4,5,6,7,8,9,10,11,12].map(m => MESES_NOME[m]), 'Meses: Todos');
+            document.getElementById('filtroMes').innerHTML = `<option value="">Meses: Todos</option>` +
+                [1,2,3,4,5,6,7,8,9,10,11,12].map(m => `<option value="${m}">${MESES_NOME[m]}</option>`).join('');
+            document.getElementById('filtroMes').onchange = renderizarAbaAtiva;
+            popularSelect('filtroEmpresa', empresas, 'Empresas: Todas');
+            popularSelect('filtroClassificacao', classificacoes, 'Classificações: Todas');
+            popularSelect('filtroPago', ['Pago', 'Não pago'], 'Pagamento: Todos');
+        }
+
+        function aplicarFiltros(dados) {
+            const ano = document.getElementById('filtroAno').value;
+            const mes = document.getElementById('filtroMes').value;
+            const empresa = document.getElementById('filtroEmpresa').value;
+            const classificacao = document.getElementById('filtroClassificacao').value;
+            const pago = document.getElementById('filtroPago').value;
+
+            return dados.filter(d =>
+                (!ano || String(d.ano) === ano) &&
+                (!mes || String(d.mes) === mes) &&
+                (!empresa || d.empresa === empresa) &&
+                (!classificacao || d.classificacao === classificacao) &&
+                (!pago || d.pago === pago)
+            );
+        }
+
+        function filtrosQueryString() {
+            const ano = document.getElementById('filtroAno').value;
+            const mes = document.getElementById('filtroMes').value;
+            const empresa = document.getElementById('filtroEmpresa').value;
+            const classificacao = document.getElementById('filtroClassificacao').value;
+            const pago = document.getElementById('filtroPago').value;
+            const params = new URLSearchParams();
+            if (ano) params.set('ano', ano);
+            if (mes) params.set('mes', mes);
+            if (empresa) params.set('empresa', empresa);
+            if (classificacao) params.set('classificacao', classificacao);
+            if (pago) params.set('pago', pago);
+            return params.toString();
+        }
+
+        // ─── ABA 1: VISÃO GERAL ─────────────────────────────────────────────
+
+        function renderGeral(dados) {
+            const receita = dados.filter(d => d.tipo === 'Receita').reduce((s, d) => s + d.valor, 0);
+            const despesa = dados.filter(d => d.tipo === 'Despesa').reduce((s, d) => s + d.valor, 0);
+            const resultado = receita + despesa;
+            const margem = receita !== 0 ? (resultado / receita * 100) : 0;
+
+            document.getElementById('kpiReceita').textContent = fmtMoeda(receita);
+            document.getElementById('kpiDespesa').textContent = fmtMoeda(Math.abs(despesa));
+            document.getElementById('kpiResultado').textContent = fmtMoeda(resultado);
+            document.getElementById('kpiResultado').className = 'text-2xl font-black mt-1 ' + (resultado >= 0 ? 'text-indigo-600' : 'text-rose-600');
+            document.getElementById('kpiMargem').textContent = margem.toFixed(1).replace('.', ',') + '%';
+
+            const chavesMes = [...new Set(dados.filter(d => d.mes).map(d => `${d.ano}-${String(d.mes).padStart(2,'0')}`))].sort();
+            const serieReceita = chavesMes.map(chave => {
+                const [a, m] = chave.split('-').map(Number);
+                return dados.filter(d => d.ano === a && d.mes === m && d.tipo === 'Receita').reduce((s, d) => s + d.valor, 0);
+            });
+            const serieDespesa = chavesMes.map(chave => {
+                const [a, m] = chave.split('-').map(Number);
+                return dados.filter(d => d.ano === a && d.mes === m && d.tipo === 'Despesa').reduce((s, d) => s + d.valor, 0);
+            });
+            const serieResultado = chavesMes.map((_, i) => serieReceita[i] + serieDespesa[i]);
+            const labels = chavesMes.map(chave => {
+                const [a, m] = chave.split('-').map(Number);
+                return `${MESES_NOME[m]}/${String(a).slice(2)}`;
+            });
+
+            renderChart('chartMensal', 'line', {
+                labels,
+                datasets: [
+                    { label: 'Receita', data: serieReceita, borderColor: COR_RECEITA, backgroundColor: COR_RECEITA, tension: 0.25 },
+                    { label: 'Despesa', data: serieDespesa.map(v => Math.abs(v)), borderColor: COR_DESPESA, backgroundColor: COR_DESPESA, tension: 0.25 },
+                    { label: 'Resultado', data: serieResultado, borderColor: COR_RESULTADO, backgroundColor: COR_RESULTADO, tension: 0.25, borderDash: [5,3] },
+                ],
+            }, { scales: { y: { ticks: { callback: v => fmtMoeda(v) } } } });
+        }
+
+        // ─── ABA 2: POR CATEGORIA ───────────────────────────────────────────
+
+        function agruparPor(dados, campo) {
+            const mapa = {};
+            dados.forEach(d => { mapa[d[campo]] = (mapa[d[campo]] || 0) + d.valor; });
+            return mapa;
+        }
+
+        function renderCategoria(dados) {
+            const despesas = agruparPor(dados.filter(d => d.tipo === 'Despesa'), 'classificacao');
+            const entradasDesp = Object.entries(despesas).map(([k, v]) => [k, Math.abs(v)]).sort((a, b) => b[1] - a[1]);
+            renderChart('chartCategoriaDespesa', 'bar', {
+                labels: entradasDesp.map(e => e[0]),
+                datasets: [{ label: 'Despesa', data: entradasDesp.map(e => e[1]), backgroundColor: COR_DESPESA }],
+            }, { indexAxis: 'y', scales: { x: { ticks: { callback: v => fmtMoeda(v) } } } });
+
+            const receitas = agruparPor(dados.filter(d => d.tipo === 'Receita'), 'classificacao');
+            const entradasRec = Object.entries(receitas).sort((a, b) => b[1] - a[1]);
+            renderChart('chartCategoriaReceita', 'bar', {
+                labels: entradasRec.map(e => e[0]),
+                datasets: [{ label: 'Receita', data: entradasRec.map(e => e[1]), backgroundColor: COR_RECEITA }],
+            }, { indexAxis: 'y', scales: { x: { ticks: { callback: v => fmtMoeda(v) } } } });
+
+            const planoContas = agruparPor(dados.filter(d => d.tipo === 'Despesa'), 'plano_contas');
+            const topPlano = Object.entries(planoContas).map(([k, v]) => [k, Math.abs(v)]).sort((a, b) => b[1] - a[1]).slice(0, 15);
+            document.getElementById('tabelaPlanoContas').innerHTML = topPlano.map(([k, v]) =>
+                `<tr class="border-b border-slate-100"><td class="py-1.5">${k}</td><td class="py-1.5 text-right font-medium">${fmtMoeda(v)}</td></tr>`
+            ).join('');
+        }
+
+        // ─── ABA 3: POR EMPRESA ─────────────────────────────────────────────
+
+        function renderEmpresa(dados) {
+            const empresas = [...new Set(dados.map(d => d.empresa))].sort();
+            const receitaPorEmpresa = empresas.map(e => dados.filter(d => d.empresa === e && d.tipo === 'Receita').reduce((s, d) => s + d.valor, 0));
+            const despesaPorEmpresa = empresas.map(e => Math.abs(dados.filter(d => d.empresa === e && d.tipo === 'Despesa').reduce((s, d) => s + d.valor, 0)));
+            const resultadoPorEmpresa = empresas.map((_, i) => receitaPorEmpresa[i] - despesaPorEmpresa[i]);
+
+            renderChart('chartEmpresa', 'bar', {
+                labels: empresas,
+                datasets: [
+                    { label: 'Receita', data: receitaPorEmpresa, backgroundColor: COR_RECEITA },
+                    { label: 'Despesa', data: despesaPorEmpresa, backgroundColor: COR_DESPESA },
+                    { label: 'Resultado', data: resultadoPorEmpresa, backgroundColor: COR_RESULTADO },
+                ],
+            }, { scales: { y: { ticks: { callback: v => fmtMoeda(v) } } } });
+
+            document.getElementById('tabelaEmpresa').innerHTML = empresas.map((e, i) =>
+                `<tr class="border-b border-slate-100">
+                    <td class="py-1.5 font-medium">${e}</td>
+                    <td class="py-1.5 text-right text-emerald-600">${fmtMoeda(receitaPorEmpresa[i])}</td>
+                    <td class="py-1.5 text-right text-rose-600">${fmtMoeda(despesaPorEmpresa[i])}</td>
+                    <td class="py-1.5 text-right font-bold ${resultadoPorEmpresa[i] >= 0 ? 'text-indigo-600' : 'text-rose-600'}">${fmtMoeda(resultadoPorEmpresa[i])}</td>
+                </tr>`
+            ).join('');
+        }
+
+        // ─── ABA 4: DETALHAMENTO ────────────────────────────────────────────
+
+        function carregarDetalhado() {
+            const tbody = document.getElementById('tabelaDetalhe');
+            tbody.innerHTML = `<tr><td colspan="6" class="py-4 text-center text-gray-400">Carregando...</td></tr>`;
+            fetch(`${BASE}/api/dre-detalhado?${filtrosQueryString()}`)
+                .then(r => r.json())
+                .then(resp => {
+                    const dados = resp.status === 'sucesso' ? resp.dados : [];
+                    document.getElementById('lblContagemDetalhe').textContent = `${dados.length.toLocaleString('pt-BR')} lançamentos`;
+                    tbody.innerHTML = dados.slice(0, 500).map(d => `
+                        <tr class="border-b border-slate-100">
+                            <td class="py-1.5">${d.data_lancamento}</td>
+                            <td class="py-1.5">${d.classificacao}</td>
+                            <td class="py-1.5">${d.empresa}</td>
+                            <td class="py-1.5">${d.centro_custo}</td>
+                            <td class="py-1.5"><span class="px-2 py-0.5 rounded text-xs font-bold ${d.pago === 'Pago' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">${d.pago}</span></td>
+                            <td class="py-1.5 text-right font-medium ${d.tipo === 'Receita' ? 'text-emerald-600' : 'text-rose-600'}">R$ ${d.valor_ajustado}</td>
+                        </tr>
+                    `).join('');
+                    if (dados.length > 500) {
+                        document.getElementById('lblContagemDetalhe').textContent += ' (mostrando os 500 mais recentes — use o download para ver todos)';
+                    }
+                })
+                .catch(() => { tbody.innerHTML = `<tr><td colspan="6" class="py-4 text-center text-rose-500">Erro ao carregar.</td></tr>`; });
+        }
+
+        function baixarDetalhado() {
+            const btn = document.getElementById('btnBaixarDetalhado');
+            const textoOriginal = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = 'Gerando...';
+
+            fetch(`${BASE}/api/dre-detalhado?${filtrosQueryString()}`)
+                .then(r => r.json())
+                .then(resp => {
+                    btn.disabled = false;
+                    btn.innerHTML = textoOriginal;
+                    const dados = resp.status === 'sucesso' ? resp.dados : [];
+                    const cab = ['Data Lançamento','Classificação','Tipo','Plano de Contas','Empresa','Forma de Pagamento','Centro de Custo','Beneficiário','Valor Ajustado','Data Pagamento','Pago'];
+                    const linhas = [cab.join(';')].concat(
+                        dados.map(d => [
+                            d.data_lancamento, d.classificacao, d.tipo, d.plano_contas, d.empresa,
+                            d.forma_pagamento, d.centro_custo, d.beneficiario, d.valor_ajustado,
+                            d.data_pagamento, d.pago,
+                        ].join(';'))
+                    );
+                    const bom = '﻿';
+                    const blob = new Blob([bom + linhas.join('\n')], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url; a.download = 'dre_detalhado.csv'; a.click();
+                    URL.revokeObjectURL(url);
+                })
+                .catch(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = textoOriginal;
+                    alert('Erro ao buscar dados. Tente novamente.');
+                });
+        }
+
+        // ─── CHART.JS HELPER ────────────────────────────────────────────────
+
+        function renderChart(canvasId, tipo, data, opcoesExtra) {
+            if (charts[canvasId]) charts[canvasId].destroy();
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            charts[canvasId] = new Chart(ctx, {
+                type: tipo,
+                data,
+                options: Object.assign({
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top' } },
+                }, opcoesExtra || {}),
+            });
+        }
+
+        // ─── CARGA INICIAL (cache localStorage + BigQuery) ─────────────────
+
+        document.addEventListener('DOMContentLoaded', () => {
+            mudarAba('geral');
+
+            const CACHE_PREFIX = 'financeiro_';
+
+            function aplicarDados(resumo) {
+                dadosResumo = resumo.status === 'sucesso' ? resumo.dados : [];
+                construirFiltros(dadosResumo);
+                renderizarAbaAtiva();
+                document.getElementById('overlayCarregando').style.display = 'none';
+            }
+
+            function carregarDoServidor(tsAtual) {
+                fetch(BASE + '/api/dre-resumo').then(r => r.json()).then(resumo => {
+                    try {
+                        localStorage.setItem(CACHE_PREFIX + 'ts', tsAtual);
+                        localStorage.setItem(CACHE_PREFIX + 'dre-resumo', JSON.stringify(resumo));
+                    } catch (e) { /* localStorage cheio — ignora */ }
+                    aplicarDados(resumo);
+                }).catch(err => {
+                    document.getElementById('overlayCarregando').style.display = 'none';
+                    console.error('Erro na carga:', err);
+                });
+            }
+
+            fetch(BASE + '/api/ultima-atualizacao').then(r => r.json()).then(d => {
+                const el = document.getElementById('lblUltimaAtualizacao');
+                if (el) el.textContent = d.data || '—';
+
+                const tsServidor = d.data || '';
+                const tsLocal = localStorage.getItem(CACHE_PREFIX + 'ts') || '';
+
+                if (tsServidor && tsServidor === tsLocal) {
+                    try {
+                        const resumo = JSON.parse(localStorage.getItem(CACHE_PREFIX + 'dre-resumo'));
+                        if (resumo) { aplicarDados(resumo); return; }
+                    } catch (e) { /* cache corrompido — cai no fetch */ }
+                }
+                carregarDoServidor(tsServidor);
+            }).catch(() => {
+                carregarDoServidor('');
+            });
+        });
+    </script>
+</body>
+</html>

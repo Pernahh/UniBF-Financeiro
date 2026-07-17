@@ -1,0 +1,3 @@
+D:
+cd D:\Windows - Dados\Onedrive\Documentos\Projetos\UniBF\Painel Financeiro\Dashboard
+python app.py

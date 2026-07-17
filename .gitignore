@@ -1,0 +1,4 @@
+credenciais.json
+*cred*.json
+__pycache__/
+*.pyc
