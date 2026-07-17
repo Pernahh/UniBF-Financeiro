@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: unibf-financeiro
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
