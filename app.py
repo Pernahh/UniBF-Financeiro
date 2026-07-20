@@ -87,6 +87,8 @@ def dre_resumo():
         SELECT
           Ano                                                 AS ano,
           SAFE_CAST(NULLIF(`Mes Pagamento`, '-') AS INT64)     AS mes,
+          EXTRACT(YEAR FROM `Data Lancamento`)                 AS ano_lancamento,
+          EXTRACT(MONTH FROM `Data Lancamento`)                AS mes_lancamento,
           Classificacao                                        AS classificacao,
           Tipo                                                 AS tipo,
           COALESCE(`Plano de Contas`, 'Não Informado')         AS plano_contas,
@@ -96,7 +98,7 @@ def dre_resumo():
           SUM(`Valor Ajustado`)                                AS valor,
           COUNT(*)                                             AS qtd
         FROM {TABLE}
-        GROUP BY 1,2,3,4,5,6,7,8
+        GROUP BY 1,2,3,4,5,6,7,8,9,10
         ORDER BY ano, mes
     """
 
@@ -104,6 +106,8 @@ def dre_resumo():
         return {
             "ano": int(l.ano) if l.ano is not None else None,
             "mes": int(l.mes) if l.mes is not None else None,
+            "ano_lancamento": int(l.ano_lancamento) if l.ano_lancamento is not None else None,
+            "mes_lancamento": int(l.mes_lancamento) if l.mes_lancamento is not None else None,
             "classificacao": str(l.classificacao) if l.classificacao else None,
             "tipo": str(l.tipo) if l.tipo else None,
             "plano_contas": str(l.plano_contas) if l.plano_contas else None,

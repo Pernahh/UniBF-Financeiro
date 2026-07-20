@@ -307,18 +307,20 @@
             document.getElementById('kpiResultado').className = 'text-2xl font-black mt-1 ' + (resultado >= 0 ? 'text-indigo-600' : 'text-rose-600');
             document.getElementById('kpiMargem').textContent = margem.toFixed(1).replace('.', ',') + '%';
 
-            const chavesMes = [...new Set(dados.filter(d => d.mes).map(d => `${d.ano}-${String(d.mes).padStart(2,'0')}`))].sort();
+            // Usa mês de LANÇAMENTO (não de pagamento) — a distribuição de lucros quase nunca
+            // tem mês de pagamento (fica "Não pago"), então sumiria do gráfico se usássemos `mes`.
+            const chavesMes = [...new Set(dados.filter(d => d.mes_lancamento).map(d => `${d.ano_lancamento}-${String(d.mes_lancamento).padStart(2,'0')}`))].sort();
             const serieReceita = chavesMes.map(chave => {
                 const [a, m] = chave.split('-').map(Number);
-                return dados.filter(d => d.ano === a && d.mes === m && d.tipo === 'Receita').reduce((s, d) => s + d.valor, 0);
+                return dados.filter(d => d.ano_lancamento === a && d.mes_lancamento === m && d.tipo === 'Receita').reduce((s, d) => s + d.valor, 0);
             });
             const serieDespesaOp = chavesMes.map(chave => {
                 const [a, m] = chave.split('-').map(Number);
-                return dados.filter(d => d.ano === a && d.mes === m && d.tipo === 'Despesa' && !ehDistribuicao(d)).reduce((s, d) => s + d.valor, 0);
+                return dados.filter(d => d.ano_lancamento === a && d.mes_lancamento === m && d.tipo === 'Despesa' && !ehDistribuicao(d)).reduce((s, d) => s + d.valor, 0);
             });
             const serieDistribuicao = chavesMes.map(chave => {
                 const [a, m] = chave.split('-').map(Number);
-                return dados.filter(d => d.ano === a && d.mes === m && ehDistribuicao(d)).reduce((s, d) => s + d.valor, 0);
+                return dados.filter(d => d.ano_lancamento === a && d.mes_lancamento === m && ehDistribuicao(d)).reduce((s, d) => s + d.valor, 0);
             });
             const serieEbitda = chavesMes.map((_, i) => serieReceita[i] + serieDespesaOp[i]);
             const serieResultado = chavesMes.map((_, i) => serieEbitda[i] + serieDistribuicao[i]);
