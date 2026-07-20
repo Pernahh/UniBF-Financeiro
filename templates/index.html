@@ -58,28 +58,37 @@
 
         <!-- ABA 1 — VISÃO GERAL -->
         <div id="conteudo-geral" class="space-y-6 hidden">
-            <section class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <section class="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
                     <p class="text-gray-500 text-xs font-bold uppercase tracking-wider">Receita Total</p>
                     <p id="kpiReceita" class="text-2xl font-black text-emerald-600 mt-1">--</p>
                 </div>
                 <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
-                    <p class="text-gray-500 text-xs font-bold uppercase tracking-wider">Despesa Total</p>
+                    <p class="text-gray-500 text-xs font-bold uppercase tracking-wider">Despesas Operacionais</p>
                     <p id="kpiDespesa" class="text-2xl font-black text-rose-600 mt-1">--</p>
                 </div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border-2 border-indigo-300">
+                    <p class="text-gray-500 text-xs font-bold uppercase tracking-wider">EBITDA (Operacional)</p>
+                    <p id="kpiEbitda" class="text-2xl font-black text-indigo-600 mt-1">--</p>
+                </div>
                 <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
-                    <p class="text-gray-500 text-xs font-bold uppercase tracking-wider">Resultado</p>
+                    <p class="text-gray-500 text-xs font-bold uppercase tracking-wider">Distrib. de Lucros</p>
+                    <p id="kpiDistribuicao" class="text-2xl font-black text-amber-600 mt-1">--</p>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+                    <p class="text-gray-500 text-xs font-bold uppercase tracking-wider">Resultado Final</p>
                     <p id="kpiResultado" class="text-2xl font-black text-indigo-600 mt-1">--</p>
                 </div>
-                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
-                    <p class="text-gray-500 text-xs font-bold uppercase tracking-wider">Margem</p>
-                    <p id="kpiMargem" class="text-2xl font-black text-indigo-600 mt-1">--</p>
-                </div>
             </section>
+            <p class="text-xs text-gray-500 -mt-2">
+                EBITDA = Receita − Despesas Operacionais (RH, Marketing, Impostos etc.), sem contar retiradas dos sócios.
+                Resultado Final = EBITDA − Distribuição de Lucros / Adiantamento a Sócios. Margem (sobre a Receita):
+                <span id="kpiMargem" class="font-bold text-gray-700">--</span>
+            </p>
 
             <section class="bg-white p-5 rounded-lg shadow-sm border border-slate-200 flex flex-col h-[420px]">
                 <div class="mb-2">
-                    <h3 class="text-base font-bold text-gray-800">Evolução Mensal — Receita x Despesa x Resultado</h3>
+                    <h3 class="text-base font-bold text-gray-800">Evolução Mensal — Receita x EBITDA x Resultado Final</h3>
                     <p class="text-xs text-gray-500">Soma de Valor Ajustado por mês de pagamento, no período filtrado.</p>
                 </div>
                 <div class="flex-1 min-h-0 relative"><canvas id="chartMensal"></canvas></div>
@@ -251,14 +260,29 @@
 
         // ─── ABA 1: VISÃO GERAL ─────────────────────────────────────────────
 
+        // Contas que são retirada/distribuição de lucro aos sócios, não despesa operacional
+        // (pró-labore "grande" de 2025 e "Adiantamento de Lucro" de 2026 — ver conversa sobre EBITDA).
+        const PLANOS_NAO_OPERACIONAIS = new Set([
+            'UNIBF - JLLE - Prolabore', 'IBF - Prolabore', 'Cebradesp - Prolabore',
+            'Adiantamento de Lucro', 'Previdência CEF', 'Pensão', 'Despesas Pessoais',
+            'Cartão CEF', 'Rádio', 'IES Digital', 'Escola Laura', 'Energia.', 'Agua',
+            'Domínios.', 'Domínios', 'Diversos',
+        ]);
+        const ehDistribuicao = d => d.tipo === 'Despesa' && PLANOS_NAO_OPERACIONAIS.has(d.plano_contas);
+
         function renderGeral(dados) {
             const receita = dados.filter(d => d.tipo === 'Receita').reduce((s, d) => s + d.valor, 0);
-            const despesa = dados.filter(d => d.tipo === 'Despesa').reduce((s, d) => s + d.valor, 0);
-            const resultado = receita + despesa;
+            const despesaOperacional = dados.filter(d => d.tipo === 'Despesa' && !ehDistribuicao(d)).reduce((s, d) => s + d.valor, 0);
+            const distribuicao = dados.filter(ehDistribuicao).reduce((s, d) => s + d.valor, 0);
+            const ebitda = receita + despesaOperacional;
+            const resultado = ebitda + distribuicao;
             const margem = receita !== 0 ? (resultado / receita * 100) : 0;
 
             document.getElementById('kpiReceita').textContent = fmtMoeda(receita);
-            document.getElementById('kpiDespesa').textContent = fmtMoeda(Math.abs(despesa));
+            document.getElementById('kpiDespesa').textContent = fmtMoeda(Math.abs(despesaOperacional));
+            document.getElementById('kpiEbitda').textContent = fmtMoeda(ebitda);
+            document.getElementById('kpiEbitda').className = 'text-2xl font-black mt-1 ' + (ebitda >= 0 ? 'text-indigo-600' : 'text-rose-600');
+            document.getElementById('kpiDistribuicao').textContent = fmtMoeda(Math.abs(distribuicao));
             document.getElementById('kpiResultado').textContent = fmtMoeda(resultado);
             document.getElementById('kpiResultado').className = 'text-2xl font-black mt-1 ' + (resultado >= 0 ? 'text-indigo-600' : 'text-rose-600');
             document.getElementById('kpiMargem').textContent = margem.toFixed(1).replace('.', ',') + '%';
@@ -268,11 +292,16 @@
                 const [a, m] = chave.split('-').map(Number);
                 return dados.filter(d => d.ano === a && d.mes === m && d.tipo === 'Receita').reduce((s, d) => s + d.valor, 0);
             });
-            const serieDespesa = chavesMes.map(chave => {
+            const serieDespesaOp = chavesMes.map(chave => {
                 const [a, m] = chave.split('-').map(Number);
-                return dados.filter(d => d.ano === a && d.mes === m && d.tipo === 'Despesa').reduce((s, d) => s + d.valor, 0);
+                return dados.filter(d => d.ano === a && d.mes === m && d.tipo === 'Despesa' && !ehDistribuicao(d)).reduce((s, d) => s + d.valor, 0);
             });
-            const serieResultado = chavesMes.map((_, i) => serieReceita[i] + serieDespesa[i]);
+            const serieDistribuicao = chavesMes.map(chave => {
+                const [a, m] = chave.split('-').map(Number);
+                return dados.filter(d => d.ano === a && d.mes === m && ehDistribuicao(d)).reduce((s, d) => s + d.valor, 0);
+            });
+            const serieEbitda = chavesMes.map((_, i) => serieReceita[i] + serieDespesaOp[i]);
+            const serieResultado = chavesMes.map((_, i) => serieEbitda[i] + serieDistribuicao[i]);
             const labels = chavesMes.map(chave => {
                 const [a, m] = chave.split('-').map(Number);
                 return `${MESES_NOME[m]}/${String(a).slice(2)}`;
@@ -282,8 +311,8 @@
                 labels,
                 datasets: [
                     { label: 'Receita', data: serieReceita, borderColor: COR_RECEITA, backgroundColor: COR_RECEITA, tension: 0.25 },
-                    { label: 'Despesa', data: serieDespesa.map(v => Math.abs(v)), borderColor: COR_DESPESA, backgroundColor: COR_DESPESA, tension: 0.25 },
-                    { label: 'Resultado', data: serieResultado, borderColor: COR_RESULTADO, backgroundColor: COR_RESULTADO, tension: 0.25, borderDash: [5,3] },
+                    { label: 'EBITDA', data: serieEbitda, borderColor: COR_RESULTADO, backgroundColor: COR_RESULTADO, tension: 0.25 },
+                    { label: 'Resultado Final', data: serieResultado, borderColor: COR_DESPESA, backgroundColor: COR_DESPESA, tension: 0.25, borderDash: [5,3] },
                 ],
             }, { scales: { y: { ticks: { callback: v => fmtMoeda(v) } } } });
         }
