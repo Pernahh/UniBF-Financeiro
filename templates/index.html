@@ -58,6 +58,15 @@
 
         <!-- ABA 1 — VISÃO GERAL -->
         <div id="conteudo-geral" class="space-y-6 hidden">
+            <div class="flex items-center gap-3">
+                <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Regime:</span>
+                <div class="inline-flex rounded-lg border border-slate-300 overflow-hidden">
+                    <button id="btnRegimeCompetencia" onclick="mudarRegime(false)" class="px-3 py-1.5 text-sm font-bold transition-all bg-indigo-600 text-white">Competência (tudo)</button>
+                    <button id="btnRegimeCaixa" onclick="mudarRegime(true)" class="px-3 py-1.5 text-sm font-bold transition-all bg-white text-slate-500 hover:bg-slate-50">Caixa (só pago)</button>
+                </div>
+                <span class="text-xs text-gray-500">Competência conta tudo que foi lançado, mesmo sem pagar ainda. Caixa conta só o que já foi efetivamente pago.</span>
+            </div>
+
             <section class="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
                     <p class="text-gray-500 text-xs font-bold uppercase tracking-wider">Receita Total</p>
@@ -168,6 +177,7 @@
 
         let dadosResumo = [];
         let abaAtiva = 'geral';
+        let regimeCaixa = false;
         let charts = {};
 
         const BASE = window.location.hostname === 'localhost'
@@ -201,6 +211,15 @@
             else if (abaAtiva === 'categoria') renderCategoria(filtrados);
             else if (abaAtiva === 'empresa') renderEmpresa(filtrados);
             else if (abaAtiva === 'detalhe') carregarDetalhado();
+        }
+
+        function mudarRegime(caixa) {
+            regimeCaixa = caixa;
+            const ativo = 'px-3 py-1.5 text-sm font-bold transition-all bg-indigo-600 text-white';
+            const inativo = 'px-3 py-1.5 text-sm font-bold transition-all bg-white text-slate-500 hover:bg-slate-50';
+            document.getElementById('btnRegimeCompetencia').className = !caixa ? ativo : inativo;
+            document.getElementById('btnRegimeCaixa').className = caixa ? ativo : inativo;
+            renderizarAbaAtiva();
         }
 
         // ─── FILTROS ────────────────────────────────────────────────────────
@@ -270,7 +289,8 @@
         ]);
         const ehDistribuicao = d => d.tipo === 'Despesa' && PLANOS_NAO_OPERACIONAIS.has(d.plano_contas);
 
-        function renderGeral(dados) {
+        function renderGeral(dadosEntrada) {
+            const dados = regimeCaixa ? dadosEntrada.filter(d => d.pago === 'Pago') : dadosEntrada;
             const receita = dados.filter(d => d.tipo === 'Receita').reduce((s, d) => s + d.valor, 0);
             const despesaOperacional = dados.filter(d => d.tipo === 'Despesa' && !ehDistribuicao(d)).reduce((s, d) => s + d.valor, 0);
             const distribuicao = dados.filter(ehDistribuicao).reduce((s, d) => s + d.valor, 0);
