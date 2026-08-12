@@ -8,7 +8,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-100 font-sans antialiased text-gray-800">
+<body class="bg-slate-100 font-sans antialiased text-gray-800" onclick="fecharDropdownMes()">
 
     <header class="bg-indigo-900 text-white shadow-md px-6 py-4">
         <div class="max-w-7xl mx-auto flex flex-col lg:flex-row justify-between items-center gap-4">
@@ -23,7 +23,13 @@
 
             <div class="flex flex-wrap gap-3 text-sm items-center justify-end w-full lg:w-auto">
                 <select id="filtroAno" class="bg-white rounded px-3 py-1.5 font-bold border border-indigo-300 text-indigo-900 shadow-sm outline-none cursor-pointer"></select>
-                <select id="filtroMes" class="bg-white rounded px-3 py-1.5 font-medium border border-indigo-300 text-indigo-900 shadow-sm outline-none cursor-pointer"></select>
+                <div class="relative inline-block text-left" onclick="event.stopPropagation()">
+                    <button type="button" onclick="toggleDropdownMes()" class="bg-white rounded px-3 py-1.5 font-medium border border-indigo-300 text-indigo-900 shadow-sm outline-none cursor-pointer flex items-center gap-1.5">
+                        <span id="lblFiltroMes">Meses: Todos</span>
+                        <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div id="painelFiltroMes" class="hidden absolute right-0 mt-1 w-40 bg-white rounded-md shadow-lg border border-indigo-200 z-50 max-h-72 overflow-y-auto p-2 space-y-0.5"></div>
+                </div>
                 <select id="filtroEmpresa" class="bg-white rounded px-3 py-1.5 font-medium border border-indigo-300 text-indigo-900 shadow-sm outline-none cursor-pointer"></select>
                 <select id="filtroClassificacao" class="bg-white rounded px-3 py-1.5 font-medium border border-indigo-300 text-indigo-900 shadow-sm outline-none cursor-pointer"></select>
                 <select id="filtroPago" class="bg-white rounded px-3 py-1.5 font-medium border border-indigo-300 text-indigo-900 shadow-sm outline-none cursor-pointer"></select>
@@ -224,11 +230,45 @@
 
         // ─── FILTROS ────────────────────────────────────────────────────────
 
+        let mesesSelecionados = new Set();
+
         function popularSelect(id, valores, labelTodos) {
             const el = document.getElementById(id);
             el.innerHTML = `<option value="">${labelTodos}</option>` +
                 valores.map(v => `<option value="${v}">${v}</option>`).join('');
             el.onchange = renderizarAbaAtiva;
+        }
+
+        function construirFiltroMeses() {
+            const painel = document.getElementById('painelFiltroMes');
+            painel.innerHTML = [1,2,3,4,5,6,7,8,9,10,11,12].map(m => `
+                <label class="flex items-center gap-2 px-2 py-1 rounded hover:bg-indigo-50 cursor-pointer text-sm text-slate-700">
+                    <input type="checkbox" value="${m}" onchange="toggleMes(${m})" ${mesesSelecionados.has(m) ? 'checked' : ''} class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                    ${MESES_NOME[m]}
+                </label>
+            `).join('');
+        }
+
+        function toggleDropdownMes() {
+            document.getElementById('painelFiltroMes').classList.toggle('hidden');
+        }
+
+        function fecharDropdownMes() {
+            document.getElementById('painelFiltroMes')?.classList.add('hidden');
+        }
+
+        function toggleMes(m) {
+            if (mesesSelecionados.has(m)) mesesSelecionados.delete(m);
+            else mesesSelecionados.add(m);
+            atualizarLabelMes();
+            renderizarAbaAtiva();
+        }
+
+        function atualizarLabelMes() {
+            const lbl = document.getElementById('lblFiltroMes');
+            if (mesesSelecionados.size === 0) lbl.textContent = 'Meses: Todos';
+            else if (mesesSelecionados.size <= 3) lbl.textContent = [...mesesSelecionados].sort((a,b) => a-b).map(m => MESES_NOME[m]).join(', ');
+            else lbl.textContent = `Meses: ${mesesSelecionados.size} selecionados`;
         }
 
         function construirFiltros(dados) {
@@ -237,10 +277,7 @@
             const classificacoes = [...new Set(dados.map(d => d.classificacao))].sort();
 
             popularSelect('filtroAno', anos, 'Anos: Todos');
-            popularSelect('filtroMes', [1,2,3,4,5,6,7,8,9,10,11,12].map(m => MESES_NOME[m]), 'Meses: Todos');
-            document.getElementById('filtroMes').innerHTML = `<option value="">Meses: Todos</option>` +
-                [1,2,3,4,5,6,7,8,9,10,11,12].map(m => `<option value="${m}">${MESES_NOME[m]}</option>`).join('');
-            document.getElementById('filtroMes').onchange = renderizarAbaAtiva;
+            construirFiltroMeses();
             popularSelect('filtroEmpresa', empresas, 'Empresas: Todas');
             popularSelect('filtroClassificacao', classificacoes, 'Classificações: Todas');
             popularSelect('filtroPago', ['Pago', 'Não pago'], 'Pagamento: Todos');
@@ -248,14 +285,13 @@
 
         function aplicarFiltros(dados) {
             const ano = document.getElementById('filtroAno').value;
-            const mes = document.getElementById('filtroMes').value;
             const empresa = document.getElementById('filtroEmpresa').value;
             const classificacao = document.getElementById('filtroClassificacao').value;
             const pago = document.getElementById('filtroPago').value;
 
             return dados.filter(d =>
                 (!ano || String(d.ano) === ano) &&
-                (!mes || String(d.mes) === mes) &&
+                (mesesSelecionados.size === 0 || mesesSelecionados.has(d.mes)) &&
                 (!empresa || d.empresa === empresa) &&
                 (!classificacao || d.classificacao === classificacao) &&
                 (!pago || d.pago === pago)
@@ -264,13 +300,12 @@
 
         function filtrosQueryString() {
             const ano = document.getElementById('filtroAno').value;
-            const mes = document.getElementById('filtroMes').value;
             const empresa = document.getElementById('filtroEmpresa').value;
             const classificacao = document.getElementById('filtroClassificacao').value;
             const pago = document.getElementById('filtroPago').value;
             const params = new URLSearchParams();
             if (ano) params.set('ano', ano);
-            if (mes) params.set('mes', mes);
+            mesesSelecionados.forEach(m => params.append('mes', m));
             if (empresa) params.set('empresa', empresa);
             if (classificacao) params.set('classificacao', classificacao);
             if (pago) params.set('pago', pago);

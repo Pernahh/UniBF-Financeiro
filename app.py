@@ -127,7 +127,7 @@ def dre_resumo():
 def dre_detalhado():
     """Lançamentos individuais respeitando filtros — tabela e download CSV da aba Detalhamento."""
     ano = request.args.get('ano', type=int)
-    mes = request.args.get('mes', type=int)
+    meses = request.args.getlist('mes', type=int)
     empresa = request.args.get('empresa', default='', type=str)
     classificacao = request.args.get('classificacao', default='', type=str)
     pago = request.args.get('pago', default='', type=str)
@@ -137,9 +137,9 @@ def dre_detalhado():
     if ano:
         filtros.append("Ano = @ano")
         query_params.append(bigquery.ScalarQueryParameter('ano', 'INT64', ano))
-    if mes:
-        filtros.append("SAFE_CAST(NULLIF(`Mes Pagamento`, '-') AS INT64) = @mes")
-        query_params.append(bigquery.ScalarQueryParameter('mes', 'INT64', mes))
+    if meses:
+        filtros.append("SAFE_CAST(NULLIF(`Mes Pagamento`, '-') AS INT64) IN UNNEST(@meses)")
+        query_params.append(bigquery.ArrayQueryParameter('meses', 'INT64', meses))
     if empresa:
         filtros.append("COALESCE(Empresa, 'Não Informado') = @empresa")
         query_params.append(bigquery.ScalarQueryParameter('empresa', 'STRING', empresa))
