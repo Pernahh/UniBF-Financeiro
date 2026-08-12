@@ -279,15 +279,12 @@
 
         // ─── ABA 1: VISÃO GERAL ─────────────────────────────────────────────
 
-        // Contas que são retirada/distribuição de lucro aos sócios, não despesa operacional
-        // (pró-labore "grande" de 2025 e "Adiantamento de Lucro" de 2026 — ver conversa sobre EBITDA).
-        const PLANOS_NAO_OPERACIONAIS = new Set([
-            'UNIBF - JLLE - Prolabore', 'IBF - Prolabore', 'Cebradesp - Prolabore',
-            'Adiantamento de Lucro', 'Previdência CEF', 'Pensão', 'Despesas Pessoais',
-            'Cartão CEF', 'Rádio', 'IES Digital', 'Escola Laura', 'Energia.', 'Agua',
-            'Domínios.', 'Domínios', 'Diversos',
-        ]);
-        const ehDistribuicao = d => d.tipo === 'Despesa' && PLANOS_NAO_OPERACIONAIS.has(d.plano_contas);
+        // Retirada/distribuição de lucro aos sócios, não despesa operacional — identificada pela
+        // CLASSIFICAÇÃO (não pelo nome da conta): contas como "Domínios" são usadas tanto para
+        // despesa pessoal do sócio (ADIANTAMENTO DE LUCRO) quanto para despesa da empresa
+        // (DESPESAS COM VENDAS), então o nome sozinho não é confiável.
+        const CLASSIFICACOES_NAO_OPERACIONAIS = new Set(['ADIANTAMENTO DE LUCRO', 'PROLABORE']);
+        const ehDistribuicao = d => d.tipo === 'Despesa' && CLASSIFICACOES_NAO_OPERACIONAIS.has(d.classificacao);
 
         function renderGeral(dadosEntrada) {
             const dados = regimeCaixa ? dadosEntrada.filter(d => d.pago === 'Pago') : dadosEntrada;
