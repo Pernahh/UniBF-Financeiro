@@ -111,6 +111,19 @@
                 </div>
                 <div class="flex-1 min-h-0 relative"><canvas id="chartMensal"></canvas></div>
             </section>
+
+            <section class="bg-white p-5 rounded-lg shadow-sm border border-slate-200">
+                <div class="mb-1">
+                    <h3 class="text-base font-bold text-gray-800">DRE por Centro de Custo</h3>
+                    <p class="text-xs text-gray-500">Valores em R$ mil, por mês de lançamento. Ano: <span id="lblAnoDRE" class="font-bold text-gray-700"></span></p>
+                </div>
+                <div class="overflow-x-auto mt-3">
+                    <table class="text-xs border-collapse w-full">
+                        <thead><tr id="cabecalhoDRE"></tr></thead>
+                        <tbody id="corpoDRE"></tbody>
+                    </table>
+                </div>
+            </section>
         </div>
 
         <!-- ABA 2 — POR CATEGORIA -->
@@ -376,6 +389,102 @@
                     { label: 'Resultado Final', data: serieResultado, borderColor: COR_DESPESA, backgroundColor: COR_DESPESA, tension: 0.25, borderDash: [5,3] },
                 ],
             }, { scales: { y: { ticks: { callback: v => fmtMoeda(v) } } } });
+
+            renderDRE(dados);
+        }
+
+        // ─── DRE POR CENTRO DE CUSTO (grade estilo planilha) ────────────────
+
+        const COLUNAS_DRE = [
+            { label: 'Jan', meses: [1] }, { label: 'Fev', meses: [2] }, { label: 'Mar', meses: [3] },
+            { label: 'Abr', meses: [4] }, { label: 'Mai', meses: [5] }, { label: 'Jun', meses: [6] },
+            { label: 'Jul', meses: [7] }, { label: 'Ago', meses: [8] }, { label: 'Set', meses: [9] },
+            { label: 'Out', meses: [10] }, { label: 'Nov', meses: [11] }, { label: 'Dez', meses: [12] },
+            { label: '1T', meses: [1,2,3], marco: true }, { label: '2T', meses: [4,5,6], marco: true },
+            { label: '3T', meses: [7,8,9], marco: true }, { label: '4T', meses: [10,11,12], marco: true },
+            { label: '1S', meses: [1,2,3,4,5,6], marco: true }, { label: '2S', meses: [7,8,9,10,11,12], marco: true },
+            { label: 'Ano', meses: [1,2,3,4,5,6,7,8,9,10,11,12], forte: true },
+            { label: 'YTD', meses: null, forte: true },
+        ];
+
+        function fmtMil(v) {
+            const mil = (v || 0) / 1000;
+            return mil.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+        }
+
+        function somaColuna(mensal, meses) {
+            return meses.reduce((s, m) => s + mensal[m - 1], 0);
+        }
+
+        function renderDRE(dadosGeral) {
+            const anoSel = document.getElementById('filtroAno').value;
+            const anosDisponiveis = [...new Set(dadosGeral.map(d => d.ano_lancamento).filter(Boolean))];
+            if (anosDisponiveis.length === 0) {
+                document.getElementById('cabecalhoDRE').innerHTML = '';
+                document.getElementById('corpoDRE').innerHTML = '<tr><td class="py-4 text-center text-gray-400">Sem dados para o período.</td></tr>';
+                return;
+            }
+            const anoDRE = anoSel ? Number(anoSel) : Math.max(...anosDisponiveis);
+            document.getElementById('lblAnoDRE').textContent = anoDRE;
+
+            const dados = dadosGeral.filter(d => d.ano_lancamento === anoDRE && d.mes_lancamento);
+
+            const mesesComDados = new Set(dados.map(d => d.mes_lancamento));
+            const ultimoMes = mesesComDados.size ? Math.max(...mesesComDados) : 12;
+            COLUNAS_DRE[COLUNAS_DRE.length - 1].meses = Array.from({ length: ultimoMes }, (_, i) => i + 1);
+
+            // centro_custo -> classificacao -> [soma de cada um dos 12 meses]
+            const estrutura = {};
+            for (const d of dados) {
+                const cc = d.centro_custo || 'Não Informado';
+                const cl = d.classificacao || 'Não Informado';
+                if (!estrutura[cc]) estrutura[cc] = {};
+                if (!estrutura[cc][cl]) estrutura[cc][cl] = new Array(12).fill(0);
+                estrutura[cc][cl][d.mes_lancamento - 1] += d.valor;
+            }
+
+            const cab = document.getElementById('cabecalhoDRE');
+            cab.innerHTML = '<th class="text-left py-2 pr-4 sticky left-0 bg-white z-10 min-w-[240px]">Centro de Custo / Classificação</th>' +
+                COLUNAS_DRE.map(c => `<th class="text-right py-2 px-2 font-bold whitespace-nowrap ${c.forte ? 'bg-indigo-50 text-indigo-700' : c.marco ? 'text-slate-500' : 'text-gray-600'}">${c.label}</th>`).join('');
+
+            const grupos = Object.keys(estrutura).sort((a, b) => {
+                if (a === 'Receitas') return -1;
+                if (b === 'Receitas') return 1;
+                const totalA = Object.values(estrutura[a]).reduce((s, arr) => s + Math.abs(arr.reduce((x, y) => x + y, 0)), 0);
+                const totalB = Object.values(estrutura[b]).reduce((s, arr) => s + Math.abs(arr.reduce((x, y) => x + y, 0)), 0);
+                return totalB - totalA;
+            });
+
+            let html = '';
+            const totalGeralMensal = new Array(12).fill(0);
+
+            for (const cc of grupos) {
+                const classifs = estrutura[cc];
+                const mensalGrupo = new Array(12).fill(0);
+                Object.values(classifs).forEach(arr => arr.forEach((v, i) => mensalGrupo[i] += v));
+                mensalGrupo.forEach((v, i) => totalGeralMensal[i] += v);
+
+                html += `<tr class="bg-slate-50 font-bold border-t border-slate-200">
+                    <td class="py-1.5 pr-4 sticky left-0 bg-slate-50 z-10">${cc}</td>
+                    ${COLUNAS_DRE.map(c => `<td class="text-right py-1.5 px-2 whitespace-nowrap ${c.forte ? 'bg-indigo-50' : ''}">${fmtMil(somaColuna(mensalGrupo, c.meses))}</td>`).join('')}
+                </tr>`;
+
+                const classifsOrdenadas = Object.entries(classifs).sort((a, b) =>
+                    Math.abs(b[1].reduce((x, y) => x + y, 0)) - Math.abs(a[1].reduce((x, y) => x + y, 0)));
+                for (const [cl, mensal] of classifsOrdenadas) {
+                    html += `<tr class="text-slate-600 hover:bg-slate-50">
+                        <td class="py-1 pr-4 pl-6 sticky left-0 bg-white z-10">${cl}</td>
+                        ${COLUNAS_DRE.map(c => `<td class="text-right py-1 px-2 whitespace-nowrap ${c.forte ? 'bg-indigo-50/50' : ''}">${fmtMil(somaColuna(mensal, c.meses))}</td>`).join('')}
+                    </tr>`;
+                }
+            }
+
+            html += `<tr class="border-t-2 border-indigo-600 font-black text-indigo-700">
+                <td class="py-2 pr-4 sticky left-0 bg-white z-10">Resultado</td>
+                ${COLUNAS_DRE.map(c => `<td class="text-right py-2 px-2 whitespace-nowrap ${c.forte ? 'bg-indigo-50' : ''}">${fmtMil(somaColuna(totalGeralMensal, c.meses))}</td>`).join('')}
+            </tr>`;
+
+            document.getElementById('corpoDRE').innerHTML = html;
         }
 
         // ─── ABA 2: POR CATEGORIA ───────────────────────────────────────────
