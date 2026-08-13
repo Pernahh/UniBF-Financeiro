@@ -446,7 +446,9 @@
             // centro_custo -> classificacao -> [soma de cada um dos 12 meses]
             const estrutura = {};
             for (const d of dados) {
-                const cc = normalizarCentroCusto(d.centro_custo || 'Não Informado');
+                // Toda receita entra em "Receitas", mesmo quando o Centro de Custos não foi
+                // preenchido na base — não faz sentido receita cair em "Não Informado".
+                const cc = d.tipo === 'Receita' ? 'Receitas' : normalizarCentroCusto(d.centro_custo || 'Não Informado');
                 const cl = d.classificacao || 'Não Informado';
                 if (!estrutura[cc]) estrutura[cc] = {};
                 if (!estrutura[cc][cl]) estrutura[cc][cl] = new Array(12).fill(0);
