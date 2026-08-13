@@ -81,14 +81,17 @@
                 <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
                     <p class="text-gray-500 text-xs font-bold uppercase tracking-wider">Despesas Operacionais</p>
                     <p id="kpiDespesa" class="text-2xl font-black text-rose-600 mt-1">--</p>
+                    <p id="kpiDespesaPct" class="text-xs text-gray-400 mt-0.5">--</p>
                 </div>
                 <div class="bg-white p-4 rounded-lg shadow-sm border-2 border-indigo-300">
                     <p class="text-gray-500 text-xs font-bold uppercase tracking-wider">EBITDA (Operacional)</p>
                     <p id="kpiEbitda" class="text-2xl font-black text-indigo-600 mt-1">--</p>
+                    <p id="kpiEbitdaPct" class="text-xs text-gray-400 mt-0.5">--</p>
                 </div>
                 <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
                     <p class="text-gray-500 text-xs font-bold uppercase tracking-wider">Distrib. de Lucros</p>
                     <p id="kpiDistribuicao" class="text-2xl font-black text-amber-600 mt-1">--</p>
+                    <p id="kpiDistribuicaoPct" class="text-xs text-gray-400 mt-0.5">--</p>
                 </div>
                 <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
                     <p class="text-gray-500 text-xs font-bold uppercase tracking-wider">Resultado Final</p>
@@ -329,12 +332,16 @@
             const ebitda = receita + despesaOperacional;
             const resultado = ebitda + distribuicao;
             const margem = receita !== 0 ? (resultado / receita * 100) : 0;
+            const pctDeReceita = v => receita !== 0 ? (Math.abs(v) / receita * 100).toFixed(1).replace('.', ',') + '% da receita' : '--';
 
             document.getElementById('kpiReceita').textContent = fmtMoeda(receita);
             document.getElementById('kpiDespesa').textContent = fmtMoeda(Math.abs(despesaOperacional));
+            document.getElementById('kpiDespesaPct').textContent = pctDeReceita(despesaOperacional);
             document.getElementById('kpiEbitda').textContent = fmtMoeda(ebitda);
             document.getElementById('kpiEbitda').className = 'text-2xl font-black mt-1 ' + (ebitda >= 0 ? 'text-indigo-600' : 'text-rose-600');
+            document.getElementById('kpiEbitdaPct').textContent = pctDeReceita(ebitda);
             document.getElementById('kpiDistribuicao').textContent = fmtMoeda(Math.abs(distribuicao));
+            document.getElementById('kpiDistribuicaoPct').textContent = pctDeReceita(distribuicao);
             document.getElementById('kpiResultado').textContent = fmtMoeda(resultado);
             document.getElementById('kpiResultado').className = 'text-2xl font-black mt-1 ' + (resultado >= 0 ? 'text-indigo-600' : 'text-rose-600');
             document.getElementById('kpiMargem').textContent = margem.toFixed(1).replace('.', ',') + '%';
