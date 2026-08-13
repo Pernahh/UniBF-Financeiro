@@ -395,6 +395,16 @@
 
         // ─── DRE POR CENTRO DE CUSTO (grade estilo planilha) ────────────────
 
+        // Corrige variações de grafia/duplicatas do campo Centro de Custos vindo da base
+        // (confirmado com o usuário: são mesmo a mesma área, não centros distintos).
+        const CENTRO_CUSTO_DE_PARA = {
+            'comercial (Vendas)': 'Comercial (Vendas)',
+            'administrativo': 'Administrativo',
+            'Financeiro': 'Financeiro/Controladoria',
+            'RH': 'Funcionários',
+        };
+        const normalizarCentroCusto = cc => CENTRO_CUSTO_DE_PARA[cc] || cc;
+
         const COLUNAS_DRE = [
             { label: 'Jan', meses: [1] }, { label: 'Fev', meses: [2] }, { label: 'Mar', meses: [3] },
             { label: 'Abr', meses: [4] }, { label: 'Mai', meses: [5] }, { label: 'Jun', meses: [6] },
@@ -436,7 +446,7 @@
             // centro_custo -> classificacao -> [soma de cada um dos 12 meses]
             const estrutura = {};
             for (const d of dados) {
-                const cc = d.centro_custo || 'Não Informado';
+                const cc = normalizarCentroCusto(d.centro_custo || 'Não Informado');
                 const cl = d.classificacao || 'Não Informado';
                 if (!estrutura[cc]) estrutura[cc] = {};
                 if (!estrutura[cc][cl]) estrutura[cc][cl] = new Array(12).fill(0);
