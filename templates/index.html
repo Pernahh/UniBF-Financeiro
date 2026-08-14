@@ -456,6 +456,9 @@
                 return 'GA_Folha'; // inclui "Funcionários" (legado 2025) por decisão do usuário
             }
             if (cl === 'DESPESAS COM MARKETING') return 'VM_Publicidade';
+            // Equivalente 2026 do "Repasse" de 2025 — repasse a polos/afiliados/família, abatido da Receita Bruta.
+            if (['Serviços de Terceiros P.F. - Afiliados','Serviços de Terceiros P.J. - Afiliados',
+                 'Serviços de Terceiros P.J. - Polos','Serviços de Terceiros P.J. Família'].includes(pc)) return 'Repasse';
             if (cl === 'DESPESAS COM VENDAS') {
                 return /ublicidad|Agencia|MKT|Propaganda/.test(pc) ? 'VM_Publicidade' : 'VM_Outras';
             }
