@@ -114,8 +114,8 @@
 
             <section class="bg-white p-5 rounded-lg shadow-sm border border-slate-200">
                 <div class="mb-1">
-                    <h3 class="text-base font-bold text-gray-800">DRE por Centro de Custo</h3>
-                    <p class="text-xs text-gray-500">Valores em R$ mil, por mês de lançamento. Ano: <span id="lblAnoDRE" class="font-bold text-gray-700"></span></p>
+                    <h3 class="text-base font-bold text-gray-800">DRE Global</h3>
+                    <p class="text-xs text-gray-500">Por natureza de conta (não por departamento). Valores em R$ mil, por mês de lançamento. Ano: <span id="lblAnoDRE" class="font-bold text-gray-700"></span></p>
                 </div>
                 <div class="overflow-x-auto mt-3">
                     <table class="text-xs border-collapse w-full">
@@ -393,17 +393,7 @@
             renderDRE(dados);
         }
 
-        // ─── DRE POR CENTRO DE CUSTO (grade estilo planilha) ────────────────
-
-        // Corrige variações de grafia/duplicatas do campo Centro de Custos vindo da base
-        // (confirmado com o usuário: são mesmo a mesma área, não centros distintos).
-        const CENTRO_CUSTO_DE_PARA = {
-            'comercial (Vendas)': 'Comercial (Vendas)',
-            'administrativo': 'Administrativo',
-            'Financeiro': 'Financeiro/Controladoria',
-            'RH': 'Funcionários',
-        };
-        const normalizarCentroCusto = cc => CENTRO_CUSTO_DE_PARA[cc] || cc;
+        // ─── DRE GLOBAL (por natureza de conta, não por departamento) ───────
 
         const COLUNAS_DRE = [
             { label: 'Jan', meses: [1] }, { label: 'Fev', meses: [2] }, { label: 'Mar', meses: [3] },
@@ -426,6 +416,47 @@
             return meses.reduce((s, m) => s + mensal[m - 1], 0);
         }
 
+        function somar12(...arrays) {
+            const out = new Array(12).fill(0);
+            for (const arr of arrays) arr.forEach((v, i) => out[i] += v);
+            return out;
+        }
+
+        // Classifica cada lançamento numa linha fixa do DRE, por natureza de conta —
+        // não por centro de custo/departamento. Decisões confirmadas com o usuário:
+        //  - "Funcionários" (RH legado de 2025, sem separação por departamento) → G&A > Folha
+        //  - "Parcerias/Repasse" e "Fornecedores/Operacionais" legado 2025 → Custos Diretos > Outros custos
+        //  - T.I., Financeiro/Bancárias e Diretoria (fora da distribuição) → G&A > Outras Administrativas
+        function linhaDREPara(d) {
+            if (d.tipo === 'Receita') {
+                return d.classificacao === 'RECEITA COM ALUGUEL' ? 'OutrasReceitas' : 'Mensalidades';
+            }
+            if (CLASSIFICACOES_NAO_OPERACIONAIS.has(d.classificacao)) return 'Distribuicao';
+
+            const cl = d.classificacao, pc = d.plano_contas, centro = d.centro_custo;
+
+            if (cl === 'CUSTOS COM SERVIÇOS') {
+                if (pc.includes('Faturamento') || pc === 'Devolução de Mensalidades' || pc === 'Devolução') return 'Deducoes';
+                if (pc === 'Material Acadêmico' || pc === 'Certificação') return 'CD_Material';
+                return 'CD_Outros';
+            }
+            if (cl === 'IMPOSTOS') return 'CD_Impostos';
+            if (cl === 'DESPESAS COM RH') {
+                if (pc === 'Salários Professores') return 'CD_Professor';
+                if (centro === 'Operacional') return 'CD_Folha';
+                if (centro === 'Marketing' || centro === 'Comercial (Vendas)' || centro === 'comercial (Vendas)') return 'VM_Folha';
+                return 'GA_Folha'; // inclui "Funcionários" (legado 2025) por decisão do usuário
+            }
+            if (cl === 'DESPESAS COM MARKETING') return 'VM_Publicidade';
+            if (cl === 'DESPESAS COM VENDAS') {
+                return /ublicidad|Agencia|MKT|Propaganda/.test(pc) ? 'VM_Publicidade' : 'VM_Outras';
+            }
+            if (cl === 'DESPESAS OPERACIONAIS' || cl === 'DESPESAS FORNECEDORES' || cl === 'PARCERIAS REPASSE') return 'CD_Outros';
+            if (/Manut/.test(pc)) return 'GA_Manutencoes';
+            if (['PJ','Terceirizada','Terceirizada.','Consultoria','Consultoria Empresarial','Honorários Contábeis','Honorários Advocatícios'].includes(pc)) return 'GA_Terceiros';
+            return 'GA_Outras';
+        }
+
         function renderDRE(dadosGeral) {
             const anoSel = document.getElementById('filtroAno').value;
             const anosDisponiveis = [...new Set(dadosGeral.map(d => d.ano_lancamento).filter(Boolean))];
@@ -443,58 +474,85 @@
             const ultimoMes = mesesComDados.size ? Math.max(...mesesComDados) : 12;
             COLUNAS_DRE[COLUNAS_DRE.length - 1].meses = Array.from({ length: ultimoMes }, (_, i) => i + 1);
 
-            // centro_custo -> classificacao -> [soma de cada um dos 12 meses]
-            const estrutura = {};
+            // linha (chave fixa) -> [soma de cada um dos 12 meses]
+            const linhas = {};
             for (const d of dados) {
-                // Toda receita entra em "Receitas", mesmo quando o Centro de Custos não foi
-                // preenchido na base — não faz sentido receita cair em "Não Informado".
-                const cc = d.tipo === 'Receita' ? 'Receitas' : normalizarCentroCusto(d.centro_custo || 'Não Informado');
-                const cl = d.classificacao || 'Não Informado';
-                if (!estrutura[cc]) estrutura[cc] = {};
-                if (!estrutura[cc][cl]) estrutura[cc][cl] = new Array(12).fill(0);
-                estrutura[cc][cl][d.mes_lancamento - 1] += d.valor;
+                const chave = linhaDREPara(d);
+                if (!linhas[chave]) linhas[chave] = new Array(12).fill(0);
+                linhas[chave][d.mes_lancamento - 1] += d.valor;
             }
+            const zeros = () => new Array(12).fill(0);
+            const l = chave => linhas[chave] || zeros();
+
+            const receitaBruta   = somar12(l('Mensalidades'), l('OutrasReceitas'));
+            const receitaLiquida = somar12(receitaBruta, l('Deducoes'));
+            const custosDiretos  = somar12(l('CD_Professor'), l('CD_Folha'), l('CD_Material'), l('CD_Impostos'), l('CD_Outros'));
+            const lucroBruto     = somar12(receitaLiquida, custosDiretos);
+            const despesasGA     = somar12(l('GA_Folha'), l('GA_Terceiros'), l('GA_Manutencoes'), l('GA_Outras'));
+            const despesasVM     = somar12(l('VM_Folha'), l('VM_Publicidade'), l('VM_Outras'));
+            const pdd             = zeros();
+            const receitaFinanc   = zeros();
+            const adjEbitda       = somar12(lucroBruto, despesasGA, despesasVM, pdd, receitaFinanc);
+            const resultadoFinal  = somar12(adjEbitda, l('Distribuicao'));
+
+            const linhasDRE = [
+                { label: 'Receita Bruta', dados: receitaBruta, bold: true },
+                { label: 'Mensalidades', dados: l('Mensalidades'), indent: true },
+                { label: 'Outras Receitas', dados: l('OutrasReceitas'), indent: true },
+                { label: 'Deduções', dados: l('Deducoes'), indent: true },
+                { label: 'Receita Líquida', dados: receitaLiquida, bold: true, destaque: true },
+                { label: 'Custos Diretos', dados: custosDiretos, bold: true },
+                { label: 'Professor', dados: l('CD_Professor'), indent: true },
+                { label: 'Folha de pagamento', dados: l('CD_Folha'), indent: true },
+                { label: 'Material Acadêmico', dados: l('CD_Material'), indent: true },
+                { label: 'Impostos, Taxas e Contribuições', dados: l('CD_Impostos'), indent: true },
+                { label: 'Outros custos', dados: l('CD_Outros'), indent: true },
+                { label: 'Lucro Bruto', dados: lucroBruto, bold: true, destaque: true },
+                { label: 'Margem Bruta (%)', pct: true, base: lucroBruto, denom: receitaLiquida, italic: true },
+                { label: 'Despesas Gerais e Administrativas', dados: despesasGA, bold: true },
+                { label: 'Folha de pagamento', dados: l('GA_Folha'), indent: true },
+                { label: 'Serviço de Terceiros Diversos', dados: l('GA_Terceiros'), indent: true },
+                { label: 'Manutenções', dados: l('GA_Manutencoes'), indent: true },
+                { label: 'Outras Despesas Administrativas', dados: l('GA_Outras'), indent: true },
+                { label: 'Despesas Vendas e Marketing', dados: despesasVM, bold: true },
+                { label: 'Folha de pagamento', dados: l('VM_Folha'), indent: true },
+                { label: 'Publicidade e Propaganda', dados: l('VM_Publicidade'), indent: true },
+                { label: 'Outras Vendas e Marketing', dados: l('VM_Outras'), indent: true },
+                { label: 'PDD', dados: pdd, indent: true },
+                { label: '(+) Receita Financeira das Operações', dados: receitaFinanc, indent: true },
+                { label: 'Adj. EBITDA', dados: adjEbitda, bold: true, destaque: true },
+                { label: 'Adj. Margem EBITDA (%)', pct: true, base: adjEbitda, denom: receitaLiquida, italic: true },
+                { label: '(–) Distribuição de Lucros / Adiantamento a Sócios', dados: l('Distribuicao'), indent: true },
+                { label: 'Resultado Final', dados: resultadoFinal, bold: true, destaque: true },
+            ];
 
             const cab = document.getElementById('cabecalhoDRE');
-            cab.innerHTML = '<th class="text-left py-2 pr-4 sticky left-0 bg-white z-10 min-w-[240px]">Centro de Custo / Classificação</th>' +
+            cab.innerHTML = '<th class="text-left py-2 pr-4 sticky left-0 bg-white z-10 min-w-[280px]">DRE (por natureza de conta)</th>' +
                 COLUNAS_DRE.map(c => `<th class="text-right py-2 px-2 font-bold whitespace-nowrap ${c.forte ? 'bg-indigo-50 text-indigo-700' : c.marco ? 'text-slate-500' : 'text-gray-600'}">${c.label}</th>`).join('');
 
-            const grupos = Object.keys(estrutura).sort((a, b) => {
-                if (a === 'Receitas') return -1;
-                if (b === 'Receitas') return 1;
-                const totalA = Object.values(estrutura[a]).reduce((s, arr) => s + Math.abs(arr.reduce((x, y) => x + y, 0)), 0);
-                const totalB = Object.values(estrutura[b]).reduce((s, arr) => s + Math.abs(arr.reduce((x, y) => x + y, 0)), 0);
-                return totalB - totalA;
-            });
-
             let html = '';
-            const totalGeralMensal = new Array(12).fill(0);
+            for (const linha of linhasDRE) {
+                const trClasses = [
+                    linha.bold ? 'font-bold' : 'text-slate-600',
+                    linha.destaque ? 'bg-indigo-50/70 border-t-2 border-indigo-300' : linha.bold ? 'bg-slate-50 border-t border-slate-200' : 'hover:bg-slate-50',
+                    linha.italic ? 'italic text-slate-400' : '',
+                ].join(' ');
+                const tdLabelClasses = 'py-1.5 pr-4 sticky left-0 z-10 ' + (linha.indent ? 'pl-6' : '') + (linha.destaque ? ' bg-indigo-50/70' : linha.bold ? ' bg-slate-50' : ' bg-white');
 
-            for (const cc of grupos) {
-                const classifs = estrutura[cc];
-                const mensalGrupo = new Array(12).fill(0);
-                Object.values(classifs).forEach(arr => arr.forEach((v, i) => mensalGrupo[i] += v));
-                mensalGrupo.forEach((v, i) => totalGeralMensal[i] += v);
-
-                html += `<tr class="bg-slate-50 font-bold border-t border-slate-200">
-                    <td class="py-1.5 pr-4 sticky left-0 bg-slate-50 z-10">${cc}</td>
-                    ${COLUNAS_DRE.map(c => `<td class="text-right py-1.5 px-2 whitespace-nowrap ${c.forte ? 'bg-indigo-50' : ''}">${fmtMil(somaColuna(mensalGrupo, c.meses))}</td>`).join('')}
-                </tr>`;
-
-                const classifsOrdenadas = Object.entries(classifs).sort((a, b) =>
-                    Math.abs(b[1].reduce((x, y) => x + y, 0)) - Math.abs(a[1].reduce((x, y) => x + y, 0)));
-                for (const [cl, mensal] of classifsOrdenadas) {
-                    html += `<tr class="text-slate-600 hover:bg-slate-50">
-                        <td class="py-1 pr-4 pl-6 sticky left-0 bg-white z-10">${cl}</td>
-                        ${COLUNAS_DRE.map(c => `<td class="text-right py-1 px-2 whitespace-nowrap ${c.forte ? 'bg-indigo-50/50' : ''}">${fmtMil(somaColuna(mensal, c.meses))}</td>`).join('')}
-                    </tr>`;
+                let celulas;
+                if (linha.pct) {
+                    celulas = COLUNAS_DRE.map(c => {
+                        const num = somaColuna(linha.base, c.meses);
+                        const den = somaColuna(linha.denom, c.meses);
+                        const pct = den !== 0 ? (num / den * 100) : 0;
+                        return `<td class="text-right py-1.5 px-2 whitespace-nowrap ${c.forte ? 'bg-indigo-50' : ''}">${pct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%</td>`;
+                    }).join('');
+                } else {
+                    celulas = COLUNAS_DRE.map(c => `<td class="text-right py-1.5 px-2 whitespace-nowrap ${c.forte ? 'bg-indigo-50' : ''}">${fmtMil(somaColuna(linha.dados, c.meses))}</td>`).join('');
                 }
-            }
 
-            html += `<tr class="border-t-2 border-indigo-600 font-black text-indigo-700">
-                <td class="py-2 pr-4 sticky left-0 bg-white z-10">Resultado</td>
-                ${COLUNAS_DRE.map(c => `<td class="text-right py-2 px-2 whitespace-nowrap ${c.forte ? 'bg-indigo-50' : ''}">${fmtMil(somaColuna(totalGeralMensal, c.meses))}</td>`).join('')}
-            </tr>`;
+                html += `<tr class="${trClasses}"><td class="${tdLabelClasses}">${linha.label}</td>${celulas}</tr>`;
+            }
 
             document.getElementById('corpoDRE').innerHTML = html;
         }
