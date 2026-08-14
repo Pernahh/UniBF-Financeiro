@@ -459,7 +459,8 @@
             if (cl === 'DESPESAS COM VENDAS') {
                 return /ublicidad|Agencia|MKT|Propaganda/.test(pc) ? 'VM_Publicidade' : 'VM_Outras';
             }
-            if (cl === 'DESPESAS OPERACIONAIS' || cl === 'DESPESAS FORNECEDORES' || cl === 'PARCERIAS REPASSE') return 'CD_Outros';
+            if (cl === 'PARCERIAS REPASSE') return 'Repasse'; // abatido da Receita Bruta, não Custos Diretos
+            if (cl === 'DESPESAS OPERACIONAIS' || cl === 'DESPESAS FORNECEDORES') return 'CD_Outros';
             if (/Manut/.test(pc)) return 'GA_Manutencoes';
             if (['PJ','Terceirizada','Terceirizada.','Consultoria','Consultoria Empresarial','Honorários Contábeis','Honorários Advocatícios'].includes(pc)) return 'GA_Terceiros';
             return 'GA_Outras';
@@ -492,7 +493,7 @@
             const zeros = () => new Array(12).fill(0);
             const l = chave => linhas[chave] || zeros();
 
-            const receitaBruta   = somar12(l('Mensalidades'), l('OutrasReceitas'));
+            const receitaBruta   = somar12(l('Mensalidades'), l('OutrasReceitas'), l('Repasse'));
             const receitaLiquida = somar12(receitaBruta, l('Deducoes'));
             const custosDiretos  = somar12(l('CD_Professor'), l('CD_Folha'), l('CD_Material'), l('CD_Impostos'), l('CD_Outros'));
             const lucroBruto     = somar12(receitaLiquida, custosDiretos);
@@ -507,6 +508,7 @@
                 { label: 'Receita Bruta', dados: receitaBruta, bold: true },
                 { label: 'Mensalidades', dados: l('Mensalidades'), indent: true },
                 { label: 'Outras Receitas', dados: l('OutrasReceitas'), indent: true },
+                { label: '(-) Repasse a Instituições Parceiras', dados: l('Repasse'), indent: true },
                 { label: 'Deduções', dados: l('Deducoes'), indent: true },
                 { label: 'Receita Líquida', dados: receitaLiquida, bold: true, destaque: true },
                 { label: 'Custos Diretos', dados: custosDiretos, bold: true },
