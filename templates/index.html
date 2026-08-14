@@ -255,6 +255,14 @@
             el.onchange = renderizarAbaAtiva;
         }
 
+        // Ano não tem opção "Todos" — sempre exatamente um ano selecionado, com 2026 como padrão.
+        function popularFiltroAno(anos) {
+            const el = document.getElementById('filtroAno');
+            el.innerHTML = anos.map(v => `<option value="${v}">${v}</option>`).join('');
+            el.onchange = renderizarAbaAtiva;
+            if (anos.includes(2026)) el.value = '2026';
+        }
+
         function construirFiltroMeses() {
             const painel = document.getElementById('painelFiltroMes');
             painel.innerHTML = [1,2,3,4,5,6,7,8,9,10,11,12].map(m => `
@@ -292,7 +300,7 @@
             const empresas = [...new Set(dados.map(d => d.empresa))].sort();
             const classificacoes = [...new Set(dados.map(d => d.classificacao))].sort();
 
-            popularSelect('filtroAno', anos, 'Anos: Todos');
+            popularFiltroAno(anos);
             construirFiltroMeses();
             popularSelect('filtroEmpresa', empresas, 'Empresas: Todas');
             popularSelect('filtroClassificacao', classificacoes, 'Classificações: Todas');
