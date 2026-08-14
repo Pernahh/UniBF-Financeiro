@@ -559,7 +559,7 @@
                     celulas = COLUNAS_DRE.map(c => {
                         const val = somaColuna(linha.dados, c.meses);
                         let texto = fmtMil(val);
-                        if (linha.bold) {
+                        if (linha.bold && (c.label === 'Ano' || c.label === 'YTD')) {
                             const denom = somaColuna(receitaLiquida, c.meses);
                             const pct = denom !== 0 ? (val / denom * 100) : 0;
                             texto += ` (${pct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%)`;
