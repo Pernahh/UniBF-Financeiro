@@ -556,7 +556,16 @@
                         return `<td class="text-right py-1.5 px-2 whitespace-nowrap ${c.forte ? 'bg-indigo-50' : ''}">${pct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%</td>`;
                     }).join('');
                 } else {
-                    celulas = COLUNAS_DRE.map(c => `<td class="text-right py-1.5 px-2 whitespace-nowrap ${c.forte ? 'bg-indigo-50' : ''}">${fmtMil(somaColuna(linha.dados, c.meses))}</td>`).join('');
+                    celulas = COLUNAS_DRE.map(c => {
+                        const val = somaColuna(linha.dados, c.meses);
+                        let texto = fmtMil(val);
+                        if (linha.bold) {
+                            const denom = somaColuna(receitaLiquida, c.meses);
+                            const pct = denom !== 0 ? (val / denom * 100) : 0;
+                            texto += ` (${pct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%)`;
+                        }
+                        return `<td class="text-right py-1.5 px-2 whitespace-nowrap ${c.forte ? 'bg-indigo-50' : ''}">${texto}</td>`;
+                    }).join('');
                 }
 
                 html += `<tr class="${trClasses}"><td class="${tdLabelClasses}">${linha.label}</td>${celulas}</tr>`;
