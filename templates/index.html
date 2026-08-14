@@ -444,7 +444,7 @@
             const cl = d.classificacao, pc = d.plano_contas, centro = d.centro_custo;
 
             // Sistema acadêmico usado na entrega das aulas — custo direto, não despesa administrativa.
-            if (pc === 'Mensalidade de Sistema') return 'CD_Material';
+            if (pc === 'Mensalidade de Sistema') return 'CD_Outros';
 
             if (cl === 'CUSTOS COM SERVIÇOS') {
                 if (pc.includes('Faturamento') || pc === 'Devolução de Mensalidades' || pc === 'Devolução') return 'Deducoes';
