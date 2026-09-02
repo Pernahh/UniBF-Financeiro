@@ -345,18 +345,16 @@
         const CLASSIFICACOES_NAO_OPERACIONAIS = new Set(['ADIANTAMENTO DE LUCRO', 'PROLABORE']);
         const ehDistribuicao = d => d.tipo === 'Despesa' && CLASSIFICACOES_NAO_OPERACIONAIS.has(d.classificacao);
 
-        // Repasse a instituições parceiras/afiliados — abatido da Receita Bruta (contra-receita),
-        // não é despesa operacional. Mesmo critério usado na DRE Global (ver linhaDREPara).
+        // Repasse a instituições parceiras/afiliados — na DRE Global ele abate a Receita Líquida
+        // (não a Bruta). Aqui no topo não distinguimos Bruta/Líquida, então ele conta normal
+        // dentro de "Despesas Operacionais", igual às Deduções (ISS/PIS/COFINS s/ faturamento).
         const CONTAS_REPASSE_2026 = new Set(['Serviços de Terceiros P.F. - Afiliados', 'Serviços de Terceiros P.J. - Afiliados',
             'Serviços de Terceiros P.J. - Polos', 'Serviços de Terceiros P.J. Família']);
-        const ehRepasse = d => d.tipo === 'Despesa' && (d.classificacao === 'PARCERIAS REPASSE' || CONTAS_REPASSE_2026.has(d.plano_contas));
 
         function renderGeral(dadosEntrada) {
             const dados = regimeCaixa ? dadosEntrada.filter(d => d.pago === 'Pago') : dadosEntrada;
-            const receitaBrutaSemRepasse = dados.filter(d => d.tipo === 'Receita').reduce((s, d) => s + d.valor, 0);
-            const repasse = dados.filter(ehRepasse).reduce((s, d) => s + d.valor, 0);
-            const receita = receitaBrutaSemRepasse + repasse; // "Receita Bruta", já líquida do repasse — mesma definição da DRE Global
-            const despesaOperacional = dados.filter(d => d.tipo === 'Despesa' && !ehDistribuicao(d) && !ehRepasse(d)).reduce((s, d) => s + d.valor, 0);
+            const receita = dados.filter(d => d.tipo === 'Receita').reduce((s, d) => s + d.valor, 0);
+            const despesaOperacional = dados.filter(d => d.tipo === 'Despesa' && !ehDistribuicao(d)).reduce((s, d) => s + d.valor, 0);
             const distribuicao = dados.filter(ehDistribuicao).reduce((s, d) => s + d.valor, 0);
             const ebitda = receita + despesaOperacional;
             const resultado = ebitda + distribuicao;
@@ -380,11 +378,11 @@
             const chavesMes = [...new Set(dados.filter(d => d.mes_lancamento).map(d => `${d.ano_lancamento}-${String(d.mes_lancamento).padStart(2,'0')}`))].sort();
             const serieReceita = chavesMes.map(chave => {
                 const [a, m] = chave.split('-').map(Number);
-                return dados.filter(d => d.ano_lancamento === a && d.mes_lancamento === m && (d.tipo === 'Receita' || ehRepasse(d))).reduce((s, d) => s + d.valor, 0);
+                return dados.filter(d => d.ano_lancamento === a && d.mes_lancamento === m && d.tipo === 'Receita').reduce((s, d) => s + d.valor, 0);
             });
             const serieDespesaOp = chavesMes.map(chave => {
                 const [a, m] = chave.split('-').map(Number);
-                return dados.filter(d => d.ano_lancamento === a && d.mes_lancamento === m && d.tipo === 'Despesa' && !ehDistribuicao(d) && !ehRepasse(d)).reduce((s, d) => s + d.valor, 0);
+                return dados.filter(d => d.ano_lancamento === a && d.mes_lancamento === m && d.tipo === 'Despesa' && !ehDistribuicao(d)).reduce((s, d) => s + d.valor, 0);
             });
             const serieDistribuicao = chavesMes.map(chave => {
                 const [a, m] = chave.split('-').map(Number);
@@ -506,8 +504,8 @@
             const zeros = () => new Array(12).fill(0);
             const l = chave => linhas[chave] || zeros();
 
-            const receitaBruta   = somar12(l('Mensalidades'), l('OutrasReceitas'), l('Repasse'));
-            const receitaLiquida = somar12(receitaBruta, l('Deducoes'));
+            const receitaBruta   = somar12(l('Mensalidades'), l('OutrasReceitas'));
+            const receitaLiquida = somar12(receitaBruta, l('Deducoes'), l('Repasse'));
             const custosDiretos  = somar12(l('CD_Professor'), l('CD_Folha'), l('CD_Material'), l('CD_Impostos'), l('CD_Outros'));
             const lucroBruto     = somar12(receitaLiquida, custosDiretos);
             const despesasGA     = somar12(l('GA_Folha'), l('GA_Terceiros'), l('GA_Manutencoes'), l('GA_Outras'));
@@ -521,8 +519,8 @@
                 { label: 'Receita Bruta', dados: receitaBruta, bold: true },
                 { label: 'Mensalidades', dados: l('Mensalidades'), indent: true },
                 { label: 'Outras Receitas', dados: l('OutrasReceitas'), indent: true },
-                { label: '(-) Repasse a Instituições Parceiras', dados: l('Repasse'), indent: true },
                 { label: 'Deduções', dados: l('Deducoes'), indent: true },
+                { label: '(-) Repasse a Instituições Parceiras', dados: l('Repasse'), indent: true },
                 { label: 'Receita Líquida', dados: receitaLiquida, bold: true, destaque: true },
                 { label: 'Custos Diretos', dados: custosDiretos, bold: true },
                 { label: 'Professor', dados: l('CD_Professor'), indent: true },
