@@ -345,10 +345,18 @@
         const CLASSIFICACOES_NAO_OPERACIONAIS = new Set(['ADIANTAMENTO DE LUCRO', 'PROLABORE']);
         const ehDistribuicao = d => d.tipo === 'Despesa' && CLASSIFICACOES_NAO_OPERACIONAIS.has(d.classificacao);
 
+        // Repasse a instituições parceiras/afiliados — abatido da Receita Bruta (contra-receita),
+        // não é despesa operacional. Mesmo critério usado na DRE Global (ver linhaDREPara).
+        const CONTAS_REPASSE_2026 = new Set(['Serviços de Terceiros P.F. - Afiliados', 'Serviços de Terceiros P.J. - Afiliados',
+            'Serviços de Terceiros P.J. - Polos', 'Serviços de Terceiros P.J. Família']);
+        const ehRepasse = d => d.tipo === 'Despesa' && (d.classificacao === 'PARCERIAS REPASSE' || CONTAS_REPASSE_2026.has(d.plano_contas));
+
         function renderGeral(dadosEntrada) {
             const dados = regimeCaixa ? dadosEntrada.filter(d => d.pago === 'Pago') : dadosEntrada;
-            const receita = dados.filter(d => d.tipo === 'Receita').reduce((s, d) => s + d.valor, 0);
-            const despesaOperacional = dados.filter(d => d.tipo === 'Despesa' && !ehDistribuicao(d)).reduce((s, d) => s + d.valor, 0);
+            const receitaBrutaSemRepasse = dados.filter(d => d.tipo === 'Receita').reduce((s, d) => s + d.valor, 0);
+            const repasse = dados.filter(ehRepasse).reduce((s, d) => s + d.valor, 0);
+            const receita = receitaBrutaSemRepasse + repasse; // "Receita Bruta", já líquida do repasse — mesma definição da DRE Global
+            const despesaOperacional = dados.filter(d => d.tipo === 'Despesa' && !ehDistribuicao(d) && !ehRepasse(d)).reduce((s, d) => s + d.valor, 0);
             const distribuicao = dados.filter(ehDistribuicao).reduce((s, d) => s + d.valor, 0);
             const ebitda = receita + despesaOperacional;
             const resultado = ebitda + distribuicao;
@@ -372,11 +380,11 @@
             const chavesMes = [...new Set(dados.filter(d => d.mes_lancamento).map(d => `${d.ano_lancamento}-${String(d.mes_lancamento).padStart(2,'0')}`))].sort();
             const serieReceita = chavesMes.map(chave => {
                 const [a, m] = chave.split('-').map(Number);
-                return dados.filter(d => d.ano_lancamento === a && d.mes_lancamento === m && d.tipo === 'Receita').reduce((s, d) => s + d.valor, 0);
+                return dados.filter(d => d.ano_lancamento === a && d.mes_lancamento === m && (d.tipo === 'Receita' || ehRepasse(d))).reduce((s, d) => s + d.valor, 0);
             });
             const serieDespesaOp = chavesMes.map(chave => {
                 const [a, m] = chave.split('-').map(Number);
-                return dados.filter(d => d.ano_lancamento === a && d.mes_lancamento === m && d.tipo === 'Despesa' && !ehDistribuicao(d)).reduce((s, d) => s + d.valor, 0);
+                return dados.filter(d => d.ano_lancamento === a && d.mes_lancamento === m && d.tipo === 'Despesa' && !ehDistribuicao(d) && !ehRepasse(d)).reduce((s, d) => s + d.valor, 0);
             });
             const serieDistribuicao = chavesMes.map(chave => {
                 const [a, m] = chave.split('-').map(Number);
@@ -460,8 +468,7 @@
             }
             if (cl === 'DESPESAS COM MARKETING') return 'VM_Publicidade';
             // Equivalente 2026 do "Repasse" de 2025 — repasse a polos/afiliados/família, abatido da Receita Bruta.
-            if (['Serviços de Terceiros P.F. - Afiliados','Serviços de Terceiros P.J. - Afiliados',
-                 'Serviços de Terceiros P.J. - Polos','Serviços de Terceiros P.J. Família'].includes(pc)) return 'Repasse';
+            if (CONTAS_REPASSE_2026.has(pc)) return 'Repasse';
             if (cl === 'DESPESAS COM VENDAS') {
                 return /ublicidad|Agencia|MKT|Propaganda/.test(pc) ? 'VM_Publicidade' : 'VM_Outras';
             }
