@@ -51,6 +51,9 @@
             <button onclick="mudarAba('detalhe')" id="btn-detalhe" class="py-3 px-1 border-b-2 border-transparent font-medium text-sm text-slate-500 hover:text-indigo-600 transition-all">
                 4. Detalhamento
             </button>
+            <button onclick="mudarAba('fornecedores')" id="btn-fornecedores" class="py-3 px-1 border-b-2 border-transparent font-medium text-sm text-slate-500 hover:text-indigo-600 transition-all">
+                5. Fornecedores
+            </button>
         </div>
     </nav>
 
@@ -191,6 +194,23 @@
             </section>
         </div>
 
+        <!-- ABA 5 — FORNECEDORES -->
+        <div id="conteudo-fornecedores" class="space-y-6 hidden">
+            <section class="bg-white p-5 rounded-lg shadow-sm border border-slate-200">
+                <div class="flex items-center gap-3 mb-3">
+                    <h3 class="text-base font-bold text-gray-800">Fornecedores por Centro de Custo</h3>
+                    <select id="filtroCentroCustoFornecedor" onchange="renderizarAbaAtiva()" class="bg-white rounded px-3 py-1.5 text-sm font-medium border border-slate-300 text-slate-700 shadow-sm outline-none cursor-pointer"></select>
+                </div>
+                <p class="text-xs text-gray-500 mb-3">Valor por fornecedor (Beneficiário), por mês de lançamento, dentro do centro de custo selecionado — respeita os demais filtros ativos no topo.</p>
+                <div class="overflow-x-auto">
+                    <table class="text-xs border-collapse w-full">
+                        <thead><tr id="cabecalhoFornecedores"></tr></thead>
+                        <tbody id="corpoFornecedores"></tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
     </main>
 
     <script>
@@ -214,7 +234,7 @@
 
         function mudarAba(aba) {
             abaAtiva = aba;
-            ['geral', 'categoria', 'empresa', 'detalhe'].forEach(a => {
+            ['geral', 'categoria', 'empresa', 'detalhe', 'fornecedores'].forEach(a => {
                 document.getElementById('conteudo-' + a).classList.toggle('hidden', a !== aba);
                 const btn = document.getElementById('btn-' + a);
                 btn.classList.toggle('border-indigo-600', a === aba);
@@ -233,6 +253,7 @@
             else if (abaAtiva === 'categoria') renderCategoria(filtrados);
             else if (abaAtiva === 'empresa') renderEmpresa(filtrados);
             else if (abaAtiva === 'detalhe') carregarDetalhado();
+            else if (abaAtiva === 'fornecedores') renderFornecedores(filtrados);
         }
 
         function mudarRegime(caixa) {
@@ -299,12 +320,17 @@
             const anos = [...new Set(dados.map(d => d.ano))].sort((a, b) => b - a);
             const empresas = [...new Set(dados.map(d => d.empresa))].sort();
             const classificacoes = [...new Set(dados.map(d => d.classificacao))].sort();
+            const centrosCusto = [...new Set(dados.map(d => normalizarCentroCusto(d.centro_custo)))].sort();
 
             popularFiltroAno(anos);
             construirFiltroMeses();
             popularSelect('filtroEmpresa', empresas, 'Empresas: Todas');
             popularSelect('filtroClassificacao', classificacoes, 'Classificações: Todas');
             popularSelect('filtroPago', ['Pago', 'Não pago'], 'Pagamento: Todos');
+
+            const elCC = document.getElementById('filtroCentroCustoFornecedor');
+            elCC.innerHTML = centrosCusto.map(c => `<option value="${c}">${c}</option>`).join('');
+            elCC.onchange = renderizarAbaAtiva;
         }
 
         function aplicarFiltros(dados) {
@@ -335,6 +361,16 @@
             if (pago) params.set('pago', pago);
             return params.toString();
         }
+
+        // Corrige variações de grafia/duplicatas do campo Centro de Custos vindo da base
+        // (confirmado com o usuário: são mesmo a mesma área, não centros distintos).
+        const CENTRO_CUSTO_DE_PARA = {
+            'comercial (Vendas)': 'Comercial (Vendas)',
+            'administrativo': 'Administrativo',
+            'Financeiro': 'Financeiro/Controladoria',
+            'RH': 'Funcionários',
+        };
+        const normalizarCentroCusto = cc => CENTRO_CUSTO_DE_PARA[cc] || cc || 'Não Informado';
 
         // ─── ABA 1: VISÃO GERAL ─────────────────────────────────────────────
 
@@ -644,6 +680,58 @@
             ).join('');
         }
 
+        // ─── ABA 5: FORNECEDORES ─────────────────────────────────────────────
+
+        function renderFornecedores(dados) {
+            const elCC = document.getElementById('filtroCentroCustoFornecedor');
+            const centroSelecionado = elCC.value;
+            const cabecalho = document.getElementById('cabecalhoFornecedores');
+            const corpo = document.getElementById('corpoFornecedores');
+
+            if (!centroSelecionado) {
+                cabecalho.innerHTML = '';
+                corpo.innerHTML = '<tr><td class="py-4 text-center text-gray-400">Selecione um centro de custo.</td></tr>';
+                return;
+            }
+
+            const dadosCentro = dados.filter(d => normalizarCentroCusto(d.centro_custo) === centroSelecionado);
+
+            // fornecedor (Beneficiario) -> [soma de cada um dos 12 meses, mês de lançamento]
+            const porFornecedor = {};
+            for (const d of dadosCentro) {
+                if (!d.mes_lancamento) continue;
+                const forn = d.beneficiario || 'Não Informado';
+                if (!porFornecedor[forn]) porFornecedor[forn] = new Array(12).fill(0);
+                porFornecedor[forn][d.mes_lancamento - 1] += d.valor;
+            }
+
+            cabecalho.innerHTML = '<th class="text-left py-2 pr-4 sticky left-0 bg-white z-10 min-w-[220px]">Fornecedor</th>' +
+                MESES_NOME.slice(1).map(m => `<th class="text-right py-2 px-2 font-bold text-gray-600 whitespace-nowrap">${m}</th>`).join('') +
+                '<th class="text-right py-2 px-2 font-bold text-indigo-700 bg-indigo-50 whitespace-nowrap">Total</th>';
+
+            const fornecedores = Object.keys(porFornecedor).sort((a, b) =>
+                Math.abs(porFornecedor[b].reduce((s, v) => s + v, 0)) - Math.abs(porFornecedor[a].reduce((s, v) => s + v, 0)));
+
+            if (fornecedores.length === 0) {
+                corpo.innerHTML = '<tr><td class="py-4 text-center text-gray-400" colspan="14">Nenhum lançamento nesse centro de custo, no período filtrado.</td></tr>';
+                return;
+            }
+
+            corpo.innerHTML = fornecedores.map(forn => {
+                const mensal = porFornecedor[forn];
+                const total = mensal.reduce((s, v) => s + v, 0);
+                const celulas = mensal.map(v => {
+                    const cor = v < 0 ? 'text-rose-600' : v > 0 ? 'text-emerald-600' : 'text-gray-300';
+                    return `<td class="text-right py-1.5 px-2 whitespace-nowrap ${cor}">${v ? fmtMoeda(v) : '–'}</td>`;
+                }).join('');
+                return `<tr class="border-b border-slate-100 hover:bg-slate-50">
+                    <td class="py-1.5 pr-4 sticky left-0 bg-white z-10">${forn}</td>
+                    ${celulas}
+                    <td class="text-right py-1.5 px-2 font-bold whitespace-nowrap bg-indigo-50/50 ${total < 0 ? 'text-rose-700' : 'text-emerald-700'}">${fmtMoeda(total)}</td>
+                </tr>`;
+            }).join('');
+        }
+
         // ─── ABA 4: DETALHAMENTO ────────────────────────────────────────────
 
         function carregarDetalhado() {
@@ -725,7 +813,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             mudarAba('geral');
 
-            const CACHE_PREFIX = 'financeiro_v2_';
+            const CACHE_PREFIX = 'financeiro_v3_';
 
             function aplicarDados(resumo) {
                 dadosResumo = resumo.status === 'sucesso' ? resumo.dados : [];

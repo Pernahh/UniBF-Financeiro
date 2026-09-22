@@ -94,11 +94,12 @@ def dre_resumo():
           COALESCE(`Plano de Contas`, 'Não Informado')         AS plano_contas,
           COALESCE(Empresa, 'Não Informado')                   AS empresa,
           COALESCE(`Centro de Custos`, 'Não Informado')        AS centro_custo,
+          COALESCE(Beneficiario, 'Não Informado')              AS beneficiario,
           COALESCE(Pago, 'Não Informado')                      AS pago,
           SUM(`Valor Ajustado`)                                AS valor,
           COUNT(*)                                             AS qtd
         FROM {TABLE}
-        GROUP BY 1,2,3,4,5,6,7,8,9,10
+        GROUP BY 1,2,3,4,5,6,7,8,9,10,11
         ORDER BY ano, mes
     """
 
@@ -113,6 +114,7 @@ def dre_resumo():
             "plano_contas": str(l.plano_contas) if l.plano_contas else None,
             "empresa": str(l.empresa) if l.empresa else None,
             "centro_custo": str(l.centro_custo) if l.centro_custo else None,
+            "beneficiario": str(l.beneficiario) if l.beneficiario else None,
             "pago": str(l.pago) if l.pago else None,
             "valor": float(l.valor) if l.valor is not None else 0.0,
             "qtd": int(l.qtd),
