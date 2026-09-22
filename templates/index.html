@@ -8,7 +8,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-100 font-sans antialiased text-gray-800" onclick="fecharDropdownMes()">
+<body class="bg-slate-100 font-sans antialiased text-gray-800" onclick="fecharDropdownMes(); fecharDropdownCCForn(); fecharDropdownEmpForn()">
 
     <header class="bg-indigo-900 text-white shadow-md px-6 py-4">
         <div class="max-w-7xl mx-auto flex flex-col lg:flex-row justify-between items-center gap-4">
@@ -197,11 +197,24 @@
         <!-- ABA 5 — FORNECEDORES -->
         <div id="conteudo-fornecedores" class="space-y-6 hidden">
             <section class="bg-white p-5 rounded-lg shadow-sm border border-slate-200">
-                <div class="flex items-center gap-3 mb-3">
-                    <h3 class="text-base font-bold text-gray-800">Fornecedores por Centro de Custo</h3>
-                    <select id="filtroCentroCustoFornecedor" onchange="renderizarAbaAtiva()" class="bg-white rounded px-3 py-1.5 text-sm font-medium border border-slate-300 text-slate-700 shadow-sm outline-none cursor-pointer"></select>
+                <div class="flex flex-wrap items-center gap-3 mb-3">
+                    <h3 class="text-base font-bold text-gray-800">Pagamentos por Centro de Custo e Fornecedor</h3>
+                    <div class="relative inline-block text-left" onclick="event.stopPropagation()">
+                        <button type="button" onclick="toggleDropdownCCForn()" class="bg-white rounded px-3 py-1.5 text-sm font-medium border border-slate-300 text-slate-700 shadow-sm outline-none cursor-pointer flex items-center gap-1.5">
+                            <span id="lblFiltroCCForn">Centro de Custo: Todos</span>
+                            <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+                        <div id="painelFiltroCCForn" class="hidden absolute left-0 mt-1 w-64 bg-white rounded-md shadow-lg border border-slate-200 z-50 max-h-72 overflow-y-auto p-2 space-y-0.5"></div>
+                    </div>
+                    <div class="relative inline-block text-left" onclick="event.stopPropagation()">
+                        <button type="button" onclick="toggleDropdownEmpForn()" class="bg-white rounded px-3 py-1.5 text-sm font-medium border border-slate-300 text-slate-700 shadow-sm outline-none cursor-pointer flex items-center gap-1.5">
+                            <span id="lblFiltroEmpForn">Empresas: Todas</span>
+                            <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+                        <div id="painelFiltroEmpForn" class="hidden absolute left-0 mt-1 w-56 bg-white rounded-md shadow-lg border border-slate-200 z-50 max-h-72 overflow-y-auto p-2 space-y-0.5"></div>
+                    </div>
                 </div>
-                <p class="text-xs text-gray-500 mb-3">Valor por fornecedor (Beneficiário), por mês de lançamento, dentro do centro de custo selecionado — respeita os demais filtros ativos no topo.</p>
+                <p class="text-xs text-gray-500 mb-3">Valor por fornecedor (Beneficiário), por mês de <strong>pagamento</strong>. Usa o Ano selecionado no topo; os demais filtros do cabeçalho (Meses, Empresa, Classificação, Pago) não se aplicam nesta aba — use os filtros acima.</p>
                 <div class="overflow-x-auto">
                     <table class="text-xs border-collapse w-full">
                         <thead><tr id="cabecalhoFornecedores"></tr></thead>
@@ -253,7 +266,7 @@
             else if (abaAtiva === 'categoria') renderCategoria(filtrados);
             else if (abaAtiva === 'empresa') renderEmpresa(filtrados);
             else if (abaAtiva === 'detalhe') carregarDetalhado();
-            else if (abaAtiva === 'fornecedores') renderFornecedores(filtrados);
+            else if (abaAtiva === 'fornecedores') renderFornecedores();
         }
 
         function mudarRegime(caixa) {
@@ -316,6 +329,53 @@
             else lbl.textContent = `Meses: ${mesesSelecionados.size} selecionados`;
         }
 
+        // ─── Filtros multi-seleção da aba Fornecedores (Centro de Custo e Empresa) ──
+
+        let centrosCustoSelecionadosForn = new Set();
+        let empresasSelecionadasForn = new Set();
+
+        function construirFiltroCCForn(centros) {
+            const painel = document.getElementById('painelFiltroCCForn');
+            painel.innerHTML = centros.map(c => `
+                <label class="flex items-center gap-2 px-2 py-1 rounded hover:bg-indigo-50 cursor-pointer text-sm text-slate-700">
+                    <input type="checkbox" onchange="toggleCCForn(this.value)" value="${c}" ${centrosCustoSelecionadosForn.has(c) ? 'checked' : ''} class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                    ${c}
+                </label>
+            `).join('');
+        }
+        function toggleDropdownCCForn() { document.getElementById('painelFiltroCCForn').classList.toggle('hidden'); }
+        function fecharDropdownCCForn() { document.getElementById('painelFiltroCCForn')?.classList.add('hidden'); }
+        function toggleCCForn(c) {
+            if (centrosCustoSelecionadosForn.has(c)) centrosCustoSelecionadosForn.delete(c);
+            else centrosCustoSelecionadosForn.add(c);
+            const lbl = document.getElementById('lblFiltroCCForn');
+            if (centrosCustoSelecionadosForn.size === 0) lbl.textContent = 'Centro de Custo: Todos';
+            else if (centrosCustoSelecionadosForn.size <= 2) lbl.textContent = [...centrosCustoSelecionadosForn].join(', ');
+            else lbl.textContent = `Centro de Custo: ${centrosCustoSelecionadosForn.size} selecionados`;
+            renderizarAbaAtiva();
+        }
+
+        function construirFiltroEmpForn(empresas) {
+            const painel = document.getElementById('painelFiltroEmpForn');
+            painel.innerHTML = empresas.map(e => `
+                <label class="flex items-center gap-2 px-2 py-1 rounded hover:bg-indigo-50 cursor-pointer text-sm text-slate-700">
+                    <input type="checkbox" onchange="toggleEmpForn(this.value)" value="${e}" ${empresasSelecionadasForn.has(e) ? 'checked' : ''} class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                    ${e}
+                </label>
+            `).join('');
+        }
+        function toggleDropdownEmpForn() { document.getElementById('painelFiltroEmpForn').classList.toggle('hidden'); }
+        function fecharDropdownEmpForn() { document.getElementById('painelFiltroEmpForn')?.classList.add('hidden'); }
+        function toggleEmpForn(e) {
+            if (empresasSelecionadasForn.has(e)) empresasSelecionadasForn.delete(e);
+            else empresasSelecionadasForn.add(e);
+            const lbl = document.getElementById('lblFiltroEmpForn');
+            if (empresasSelecionadasForn.size === 0) lbl.textContent = 'Empresas: Todas';
+            else if (empresasSelecionadasForn.size <= 2) lbl.textContent = [...empresasSelecionadasForn].join(', ');
+            else lbl.textContent = `Empresas: ${empresasSelecionadasForn.size} selecionadas`;
+            renderizarAbaAtiva();
+        }
+
         function construirFiltros(dados) {
             const anos = [...new Set(dados.map(d => d.ano))].sort((a, b) => b - a);
             const empresas = [...new Set(dados.map(d => d.empresa))].sort();
@@ -328,9 +388,8 @@
             popularSelect('filtroClassificacao', classificacoes, 'Classificações: Todas');
             popularSelect('filtroPago', ['Pago', 'Não pago'], 'Pagamento: Todos');
 
-            const elCC = document.getElementById('filtroCentroCustoFornecedor');
-            elCC.innerHTML = centrosCusto.map(c => `<option value="${c}">${c}</option>`).join('');
-            elCC.onchange = renderizarAbaAtiva;
+            construirFiltroCCForn(centrosCusto);
+            construirFiltroEmpForn(empresas);
         }
 
         function aplicarFiltros(dados) {
@@ -682,46 +741,49 @@
 
         // ─── ABA 5: FORNECEDORES ─────────────────────────────────────────────
 
-        function renderFornecedores(dados) {
-            const elCC = document.getElementById('filtroCentroCustoFornecedor');
-            const centroSelecionado = elCC.value;
+        function renderFornecedores() {
             const cabecalho = document.getElementById('cabecalhoFornecedores');
             const corpo = document.getElementById('corpoFornecedores');
 
-            if (!centroSelecionado) {
-                cabecalho.innerHTML = '';
-                corpo.innerHTML = '<tr><td class="py-4 text-center text-gray-400">Selecione um centro de custo.</td></tr>';
-                return;
+            // Esta aba usa filtros próprios (Centro de Custo e Empresa, múltipla escolha) e o
+            // mês de PAGAMENTO — só respeita o Ano do cabeçalho; os demais filtros do topo
+            // (Meses, Empresa, Classificação, Pago) não se aplicam aqui.
+            const anoSel = document.getElementById('filtroAno').value;
+            let dados = dadosResumo.filter(d => String(d.ano) === anoSel);
+            if (centrosCustoSelecionadosForn.size > 0) {
+                dados = dados.filter(d => centrosCustoSelecionadosForn.has(normalizarCentroCusto(d.centro_custo)));
+            }
+            if (empresasSelecionadasForn.size > 0) {
+                dados = dados.filter(d => empresasSelecionadasForn.has(d.empresa));
             }
 
-            const dadosCentro = dados.filter(d => normalizarCentroCusto(d.centro_custo) === centroSelecionado);
-
-            // fornecedor (Beneficiario) -> [soma de cada um dos 12 meses, mês de lançamento]
+            // fornecedor (Beneficiario) -> [Jan..Dez, "Não pago"] (índice 12 = sem mês de pagamento)
             const porFornecedor = {};
-            for (const d of dadosCentro) {
-                if (!d.mes_lancamento) continue;
+            for (const d of dados) {
                 const forn = d.beneficiario || 'Não Informado';
-                if (!porFornecedor[forn]) porFornecedor[forn] = new Array(12).fill(0);
-                porFornecedor[forn][d.mes_lancamento - 1] += d.valor;
+                if (!porFornecedor[forn]) porFornecedor[forn] = new Array(13).fill(0);
+                const idx = d.mes ? d.mes - 1 : 12;
+                porFornecedor[forn][idx] += d.valor;
             }
 
             cabecalho.innerHTML = '<th class="text-left py-2 pr-4 sticky left-0 bg-white z-10 min-w-[220px]">Fornecedor</th>' +
                 MESES_NOME.slice(1).map(m => `<th class="text-right py-2 px-2 font-bold text-gray-600 whitespace-nowrap">${m}</th>`).join('') +
+                '<th class="text-right py-2 px-2 font-bold text-amber-600 whitespace-nowrap">Não pago</th>' +
                 '<th class="text-right py-2 px-2 font-bold text-indigo-700 bg-indigo-50 whitespace-nowrap">Total</th>';
 
             const fornecedores = Object.keys(porFornecedor).sort((a, b) =>
                 Math.abs(porFornecedor[b].reduce((s, v) => s + v, 0)) - Math.abs(porFornecedor[a].reduce((s, v) => s + v, 0)));
 
             if (fornecedores.length === 0) {
-                corpo.innerHTML = '<tr><td class="py-4 text-center text-gray-400" colspan="14">Nenhum lançamento nesse centro de custo, no período filtrado.</td></tr>';
+                corpo.innerHTML = '<tr><td class="py-4 text-center text-gray-400" colspan="15">Nenhum lançamento no período/filtro selecionado.</td></tr>';
                 return;
             }
 
             corpo.innerHTML = fornecedores.map(forn => {
-                const mensal = porFornecedor[forn];
-                const total = mensal.reduce((s, v) => s + v, 0);
-                const celulas = mensal.map(v => {
-                    const cor = v < 0 ? 'text-rose-600' : v > 0 ? 'text-emerald-600' : 'text-gray-300';
+                const linha = porFornecedor[forn];
+                const total = linha.reduce((s, v) => s + v, 0);
+                const celulas = linha.map((v, i) => {
+                    const cor = i === 12 ? 'text-amber-600' : v < 0 ? 'text-rose-600' : v > 0 ? 'text-emerald-600' : 'text-gray-300';
                     return `<td class="text-right py-1.5 px-2 whitespace-nowrap ${cor}">${v ? fmtMoeda(v) : '–'}</td>`;
                 }).join('');
                 return `<tr class="border-b border-slate-100 hover:bg-slate-50">
