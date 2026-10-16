@@ -109,8 +109,8 @@
 
             <section class="bg-white p-5 rounded-lg shadow-sm border border-slate-200 flex flex-col h-[420px]">
                 <div class="mb-2">
-                    <h3 class="text-base font-bold text-gray-800">Evolução Mensal — Receita x EBITDA x Resultado Final</h3>
-                    <p class="text-xs text-gray-500">Soma de Valor Ajustado por mês de pagamento, no período filtrado.</p>
+                    <h3 class="text-base font-bold text-gray-800">Evolução Mensal — Receita x Despesas x EBITDA x Resultado Final</h3>
+                    <p class="text-xs text-gray-500">Soma de Valor Ajustado por mês de lançamento, no período filtrado. Despesas Operacionais exibidas em valor absoluto.</p>
                 </div>
                 <div class="flex-1 min-h-0 relative"><canvas id="chartMensal"></canvas></div>
             </section>
@@ -494,6 +494,7 @@
                 labels,
                 datasets: [
                     { label: 'Receita', data: serieReceita, borderColor: COR_RECEITA, backgroundColor: COR_RECEITA, tension: 0.25 },
+                    { label: 'Despesas Operacionais', data: serieDespesaOp.map(v => Math.abs(v)), borderColor: '#d97706', backgroundColor: '#d97706', tension: 0.25 },
                     { label: 'EBITDA', data: serieEbitda, borderColor: COR_RESULTADO, backgroundColor: COR_RESULTADO, tension: 0.25 },
                     { label: 'Resultado Final', data: serieResultado, borderColor: COR_DESPESA, backgroundColor: COR_DESPESA, tension: 0.25, borderDash: [5,3] },
                 ],
